@@ -1,6 +1,9 @@
 ---
 title: "EDA Final Report"
-output: html_notebook
+output: 
+   html_notebook:
+      toc: true
+      theme: united
 ---
 
 ## Introduction
