@@ -1,5 +1,6 @@
 ---
 title: "EDA Final Report"
+author: "Lucy Lu (xl2602), Hanlin Wu (hw2576)"
 output: 
    html_notebook:
       toc: true
