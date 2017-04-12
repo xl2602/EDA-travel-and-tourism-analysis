@@ -30,6 +30,13 @@ Data is collected from two resources,
 - [`World Bank`](http://data.worldbank.org/indicator/NY.GDP.MKTP.CD): 
 
 
+NTTO monthly spending
+NTTO yearly spending 
+NTTO monthly inbound 
+NTTO monthly outbound
+Word Bank GDP 
+
+
 From NTTO, ...
 NTTO do not provide raw data
 
@@ -69,36 +76,54 @@ raw_ntto_outbound_m <- tbl_df(read.csv("clean_data/clean_monthly_us_to_internati
 raw_wb_gdp <- tbl_df(read.csv("clean_data/API_NY.GDP.MKTP.CD_DS2_en_csv_v2.csv", header = TRUE, skip=4))
 ```
 
-Based on the nature of our dataset, the aspects of data quality we care about most are: 1) inconsistent presentation of categorical variables; 2) Missing values, so we will break data quality down to these two parts and discuss separately.
+Data we have are: monthly spending from NTTO, yearly spending from NTTO, monthly inbound from NTTO, monthly outbound from NTTO and GDP from Word Bank. In order to analyze data quality of our data, we need first to take a look at them. 
 
-### i. Inconsistent Presentation of Categorical Values
+*Output of `str` has been truncated to get a more compact look in report* 
 
-Region/Country name
-
+- Yearly Spending from NTTO
 ```{r}
-raw_ntto_inbound_m
+str(raw_ntto_spend_y, list.len=5)
 ```
 
+- Monthly Spending from NTTO
 ```{r}
-raw_ntto_inbound_m
+str(raw_ntto_spend_m, list.len=4)
 ```
 
+- Monthly Inbound from NTTO 
 ```{r}
-raw_wb_gdp
+str(raw_ntto_inbound_m, list.len=5)
 ```
 
-
+- Monthly Outbound from NTTO
 ```{r}
-raw_ntto_spend_y %>%
-   gather(x_year, spend, -region, -type, -category) %>% 
-   separate(x_year, c("X", "year"), sep="X") %>% 
-   select(-X) %>% 
-   mutate(Missing = ifelse(is.na(spend), "yes", "no"))
+str(raw_ntto_outbound_m, list.len=4)
 ```
+
+- GDP from Word Bank
+```{r}
+str(raw_wb_gdp, list.len=6)
+```
+
+The internal structure of these data indicates several data quality issues:
+
+* Not tidy:
+      + It is better in our case to have a columns named `Year` instead of each year has its own column. 
+* Messy column names:
+      + Some columns like `X1960` is weird and we should remove the extra "X".
+* Wrong types of values:
+      + Some numerical value have been recognized as string (e.g. "1,707,635", "$1,372 ")
+* Inconsistency of categorical variable values and column names:
+      + `category` in Yearly Spending and `X.1` (The content of this column represents spending category as well) in Monthly Spending have different number of factors and for the same category. For example, we suspisious that "Education related" and "Medical/Education/Workers Spending" should refer to the same category. 
+      + In some table month is represented as first three letters (e.g. Jan) and in other table is represented as full name (e.g. APRIL).
+      + In consistency of upper/lower case of strings (e.g. `Year` and `year`)
+* Missing values
+      + 
+
+
 
 ```{r, message=FALSE}
 country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
-
 tidy_ntto_spend_y <- raw_ntto_spend_y %>%
    gather(x_year, spend, -region, -type, -category) %>% 
    separate(x_year, c("X", "year"), sep="X") %>% 
@@ -116,7 +141,6 @@ tidy_wb_gdp <- raw_wb_gdp %>%
 ```
 
 
-### ii. Missing Valuese
 ```{r}
 ggplot(tidy_ntto_spend_y, aes(x=year, y=region,  fill = Missing)) +
    geom_tile(color = "white") + 
