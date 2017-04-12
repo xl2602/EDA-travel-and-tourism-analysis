@@ -5,6 +5,7 @@ output:
    html_notebook:
       toc: true
       theme: united
+      code_folding: hide
 ---
 
 ## Introduction
@@ -21,21 +22,25 @@ International travel has become so easy that anyone can just grab his/her bags a
 -	Does the economy matter for the answers to above questions?
 
 
-Data is collected from several resources,
+Data is collected from two resources,
 
-*	`National Travel & Tourism Office (NTTO)`: On this website, we are trying to get these 4 types of data 
-    + [Number of inbound overseas travelers to the U.S.](http://travel.trade.gov/outreachpages/inbound.general_information.inbound_overview.html)
-    + Travel receipts (exports)
-    + [Number of U.S. travelers going abroad](http://travel.trade.gov/outreachpages/outbound.general_information.outbound_overview.html) 
-    + Travel payments (imports)
-* [`World Bank`](http://data.worldbank.org/indicator/NY.GDP.MKTP.CD): On this website, we are trying to get GDP per country per year, as a measurement of economy.
+-	`National Travel & Tourism Office (NTTO)`:
+    + [`Inbound Information`](http://travel.trade.gov/outreachpages/inbound.general_information.inbound_overview.html)
+    + [`Outbound Information`](http://travel.trade.gov/outreachpages/outbound.general_information.outbound_overview.html) 
+- [`World Bank`](http://data.worldbank.org/indicator/NY.GDP.MKTP.CD): 
+
+
+From NTTO, ...
+NTTO do not provide raw data
 
 Although NTTO provides plenty of information we need, it is not easy to collect and combine them together. There is much unavoidable manual work to do in the collecting process because of the inconsistent formatting (data formats may vary from year to year), file types (some are pdfs) and location of these files. For example, in order to get monthly arrival information per region, we have to download each year’s excel files, and then clean, select and combine them into a final master table that is easier to manipulate with in R. 
 
 In the end, we collect several master tables from NTTO: yearly spending per region with three categories, total monthly spending with three categories, monthly inbound visitation per country and monthly outbound visitation per country. We may use other tables as complementary tables.
 
-GDP data from World Bank is easier to clean. Further, we will load these tables to R and use dplyr and tidyr to fit the data for our analysis. 
+From World Bank,... 
+On this website, we are trying to get GDP per country per year, as a measurement of economy.
 
+GDP data from World Bank is easier to clean. Further, we will load these tables to R and use dplyr and tidyr to fit the data for our analysis. 
 
 
 ## Team
@@ -48,6 +53,90 @@ GDP data from World Bank is easier to clean. Further, we will load these tables 
 
 ## Analysis of Data Quality
 > Provide a detailed, well-organized description of data quality, including textual description, graphs, and code.
+
+```{r, message=FALSE}
+library(tidyverse)
+library(viridis)
+library(ggvis)
+library(extracat)
+```
+
+```{r, message=FALSE}
+raw_ntto_spend_y <- tbl_df(read.csv("clean_data/clean_yearly_spending_region.csv", header = TRUE))
+raw_ntto_spend_m <- tbl_df(read.csv("clean_data/Monthly_Exports_Imports_Balance.csv", header = TRUE))
+raw_ntto_inbound_m <- tbl_df(read.csv("clean_data/clean_monthly_visitation_inbound_country.csv", header = TRUE))
+raw_ntto_outbound_m <- tbl_df(read.csv("clean_data/clean_monthly_us_to_international.csv", header = TRUE))
+raw_wb_gdp <- tbl_df(read.csv("clean_data/API_NY.GDP.MKTP.CD_DS2_en_csv_v2.csv", header = TRUE, skip=4))
+```
+
+Based on the nature of our dataset, the aspects of data quality we care about most are: 1) inconsistent presentation of categorical variables; 2) Missing values, so we will break data quality down to these two parts and discuss separately.
+
+### i. Inconsistent Presentation of Categorical Values
+
+Region/Country name
+
+```{r}
+raw_ntto_inbound_m
+```
+
+```{r}
+raw_ntto_inbound_m
+```
+
+```{r}
+raw_wb_gdp
+```
+
+
+```{r}
+raw_ntto_spend_y %>%
+   gather(x_year, spend, -region, -type, -category) %>% 
+   separate(x_year, c("X", "year"), sep="X") %>% 
+   select(-X) %>% 
+   mutate(Missing = ifelse(is.na(spend), "yes", "no"))
+```
+
+```{r, message=FALSE}
+country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
+
+tidy_ntto_spend_y <- raw_ntto_spend_y %>%
+   gather(x_year, spend, -region, -type, -category) %>% 
+   separate(x_year, c("X", "year"), sep="X") %>% 
+   select(-X) %>% 
+   mutate(Missing = ifelse(is.na(spend), "yes", "no"))
+
+tidy_wb_gdp <- raw_wb_gdp %>% 
+   select(-Indicator.Name, -Indicator.Code, -X) %>% 
+   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
+   filter(grepl(country_str, Country.Name)) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   # filter(Year>1999) %>% 
+   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+```
+
+
+### ii. Missing Valuese
+```{r}
+ggplot(tidy_ntto_spend_y, aes(x=year, y=region,  fill = Missing)) +
+   geom_tile(color = "white") + 
+   scale_fill_viridis(discrete = TRUE) +
+   ggtitle("Missing Value of NTTO Yearly Spending Data") +
+   theme_linedraw()
+   # theme(axis.text.x=element_text(angle=90)) 
+```
+
+
+```{r fig.height=3, fig.width=5}
+ggplot(tidy_wb_gdp, aes(x=Year, y=Country.Name,  fill = Missing)) +
+   geom_tile(color = "white") + 
+   scale_fill_viridis(discrete = TRUE) +
+   ggtitle("Missing Value of All Interested Countries (1960-2016)") +
+   theme_linedraw() +
+   theme(axis.text.x=element_text(angle=90)) 
+```
+
+
 
 
 ## Executive Summary
