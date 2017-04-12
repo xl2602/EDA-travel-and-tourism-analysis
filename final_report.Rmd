@@ -118,17 +118,24 @@ The internal structure of these data indicates several data quality issues:
       + In some table month is represented as first three letters (e.g. Jan) and in other table is represented as full name (e.g. APRIL).
       + In consistency of upper/lower case of strings (e.g. `Year` and `year`)
 * Missing values
-      + 
+      + In order to show missing value more clearly, we pre-clean the data, the detail about how to clean data will be discussed later in Main Analysis part.
 
+```{r}
+raw_ntto_spend_m %>% 
+   gather(mon.year, spend, -X, -X.1)
+```
 
+gsub('.*:(.*)','\\1',string)
 
 ```{r, message=FALSE}
 country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
+
 tidy_ntto_spend_y <- raw_ntto_spend_y %>%
    gather(x_year, spend, -region, -type, -category) %>% 
-   separate(x_year, c("X", "year"), sep="X") %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
    select(-X) %>% 
-   mutate(Missing = ifelse(is.na(spend), "yes", "no"))
+   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>% 
+   mutate(Missing = ifelse(is.na(Spend), "yes", "no"))
 
 tidy_wb_gdp <- raw_wb_gdp %>% 
    select(-Indicator.Name, -Indicator.Code, -X) %>% 
@@ -136,13 +143,13 @@ tidy_wb_gdp <- raw_wb_gdp %>%
    filter(grepl(country_str, Country.Name)) %>% 
    separate(x_year, c("X", "Year"), sep="X") %>% 
    select(-X) %>% 
-   # filter(Year>1999) %>% 
-   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+   select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
+   # filter(year>1999) %>% 
+   mutate(missing = ifelse(is.na(GDP), "yes", "no"))
 ```
 
-
 ```{r}
-ggplot(tidy_ntto_spend_y, aes(x=year, y=region,  fill = Missing)) +
+ggplot(tidy_ntto_spend_y, aes(x=Year, y=Region, fill = Missing)) +
    geom_tile(color = "white") + 
    scale_fill_viridis(discrete = TRUE) +
    ggtitle("Missing Value of NTTO Yearly Spending Data") +
@@ -199,6 +206,13 @@ ggplot(tidy_wb_gdp, aes(x=Year, y=Country.Name,  fill = Missing)) +
 • As noted in Hmk #4, do not use circles, that is: bubbles, pie charts, or polar coordinates.
 
 • Use stacked bar charts sparingly. Try grouped bar charts and faceting as alternatives, and only choose stacked bar charts if they truly do a better job than the alternatives for observing patterns.
+
+
+#### Data Cleaning
+
+#### Challenges
+
+#### Analysis
 
 
 ## Conclusion
