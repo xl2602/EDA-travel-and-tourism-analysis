@@ -121,11 +121,18 @@ The internal structure of these data indicates several data quality issues:
       + In order to show missing value more clearly, we pre-clean the data, the detail about how to clean data will be discussed later in Main Analysis part.
 
 ```{r}
-raw_ntto_spend_m %>% 
-   gather(mon.year, spend, -X, -X.1)
+raw_ntto_inbound_m
 ```
 
-gsub('.*:(.*)','\\1',string)
+
+```{r}
+raw_ntto_inbound_m %>% 
+   gather(key, val, -year, -MONTH) %>% 
+   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=substr(MONTH, 1, 3), key=tolower(gsub('\\.', ' ', key))) %>% 
+   filter(!grepl("total", key)) %>% 
+   select(Year=year, Month, Region=key, Arrival)
+   
+```
 
 ```{r, message=FALSE}
 country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
