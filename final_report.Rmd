@@ -136,7 +136,8 @@ tidy_ntto_spend_y <- raw_ntto_spend_y %>%
    gather(x_year, spend, -region, -type, -category) %>% 
    separate(x_year, c("X", "Year"), sep="X") %>% 
    select(-X) %>% 
-   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>% 
+   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>%  
+   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
    mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region), Year=factor(Year), Region=factor(Region))
 
 tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
@@ -419,30 +420,63 @@ regional_travel %>%
 
 
 
+```{r}
+yearly_spend <- tidy_ntto_spend_y %>% 
+   filter(Region!='european union', Region!='south-central america', Region!='overseas') %>% 
+   mutate(Region=recode(Region, "asia-pacific"="asia"), Spend=Spend*1000000) %>% 
+   select(-Missing) %>% 
+   arrange(Region, Year, Type, Category) 
+```
+
+```{r}
+yearly_spend %>%
+   group_by(Type, Year) %>%
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Type, TotalSpend) %>%
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~`Receipts (exports)`, type="scatter", name='Receipts (exports)', mode = 'lines+markers', line = list(width = 1)) %>% 
+   layout(title = "Yearly Spending", xaxis = list(title = "Year"), yaxis = list(title = "Spend"))
+
+```
+
 ```{r message=FALSE, warning=FALSE}
-tidy_ntto_spend_y %>% 
-   filter(Region!='european union ' & Region!='south-central america ') %>% 
-   mutate(Region=recode(Region, "asia-pacific"="asia")) %>% 
-   arrange(Region, Year)
+yearly_spend %>% 
+   filter(Type=="Payments (imports)") %>% 
+   select(-Type) %>% 
+   group_by(Region, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Region, TotalSpend) %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 1)) %>% 
+   layout(title = "Payments (imports)", xaxis = list(title = "Year"), yaxis = list(title = "Spend"))
+```
+
+
+```{r message=FALSE, warning=FALSE}
+yearly_spend %>% 
+   filter(Type=="Receipts (exports)") %>% 
+   select(-Type) %>% 
+   group_by(Region, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Region, TotalSpend) %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 1)) %>% 
+   layout(title = "Receipts (exports)", xaxis = list(title = "Year"), yaxis = list(title = "Spend"))
 ```
 
 
 Finally, we select several region and combine inbound, outbound with GDP
 
 
-
-```{r}
-tidy_ntto_inbound_y <- tidy_ntto_inbound_m %>% 
-   group_by(Year, Region) %>% 
-   summarise(TotalInbound=sum(Inbound))
-```
-
-
-```{r}
-tidy_ntto_inbound_y <- tidy_ntto_outbound_m %>% 
-   group_by(Year, Region) %>% 
-   summarise(TotalOutbound=sum(Outbound))
-```
 
 
 
