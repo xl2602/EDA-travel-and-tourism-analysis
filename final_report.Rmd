@@ -70,7 +70,7 @@ library(extracat)
 
 ```{r, message=FALSE}
 raw_ntto_spend_y <- tbl_df(read.csv("clean_data/clean_yearly_spending_region.csv", header = TRUE))
-raw_ntto_spend_m <- tbl_df(read.csv("clean_data/Monthly_Exports_Imports_Balance.csv", header = TRUE))
+# raw_ntto_spend_m <- tbl_df(read.csv("clean_data/Monthly_Exports_Imports_Balance.csv", header = TRUE))
 raw_ntto_inbound_m <- tbl_df(read.csv("clean_data/clean_monthly_visitation_inbound_country.csv", header = TRUE))
 raw_ntto_outbound_m <- tbl_df(read.csv("clean_data/clean_monthly_us_to_international.csv", header = TRUE))
 raw_wb_gdp <- tbl_df(read.csv("clean_data/API_NY.GDP.MKTP.CD_DS2_en_csv_v2.csv", header = TRUE, skip=4))
@@ -87,7 +87,7 @@ str(raw_ntto_spend_y, list.len=5)
 
 - Monthly Spending from NTTO
 ```{r}
-str(raw_ntto_spend_m, list.len=4)
+# str(raw_ntto_spend_m, list.len=4)
 ```
 
 - Monthly Inbound from NTTO 
@@ -118,23 +118,10 @@ The internal structure of these data indicates several data quality issues:
       + In some table month is represented as first three letters (e.g. Jan) and in other table is represented as full name (e.g. APRIL).
       + In consistency of upper/lower case of strings (e.g. `Year` and `year`)
 * Missing values
-      + In order to show missing value more clearly, we pre-clean the data, the detail about how to clean data will be discussed later in Main Analysis part.
+      + In order to show missing value more clearly, we pre-processed data, the detail about how to clean data will be discussed later in Main Analysis part.
+      + As what are shown in the graph below, we only have some missing values in GDP data for countries we are interested. But the missing values are either before 1990 nor after 2016, which would not influence our analysis.
 
-```{r}
-raw_ntto_inbound_m
-```
-
-
-```{r}
-raw_ntto_inbound_m %>% 
-   gather(key, val, -year, -MONTH) %>% 
-   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=substr(MONTH, 1, 3), key=tolower(gsub('\\.', ' ', key))) %>% 
-   filter(!grepl("total", key)) %>% 
-   select(Year=year, Month, Region=key, Arrival)
-   
-```
-
-```{r, message=FALSE}
+```{r, message=FALSE, warning=FALSE}
 country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
 
 tidy_ntto_spend_y <- raw_ntto_spend_y %>%
@@ -142,7 +129,26 @@ tidy_ntto_spend_y <- raw_ntto_spend_y %>%
    separate(x_year, c("X", "Year"), sep="X") %>% 
    select(-X) %>% 
    select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>% 
-   mutate(Missing = ifelse(is.na(Spend), "yes", "no"))
+   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region))
+
+tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
+   mutate(as.character(TOTAL.ARRIVALS)) %>% 
+   gather(key, val, -year, -MONTH) %>%
+   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
+   filter(!grepl("total", key)) %>%
+   unite(YearMonth, year, Month, sep="/") %>%
+   select(Year, YearMonth, Region=key, Inbound=Arrival) %>% 
+   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"))
+
+tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
+   gather(Month, Outbound, -Year, -Regions) %>% 
+   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), Region=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
+   mutate(Region=gsub('[0-9]+', '', Region)) %>% 
+   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
+   filter(!grepl("air", Region), !Region=='total overseas', !Region=='north america', !Region=='grand total') %>% 
+   unite(YearMonth, year, Month, sep="/") %>% 
+   select(Year, YearMonth, Region, Outbound) %>% 
+   mutate(Missing = ifelse(is.na(Outbound), "yes", "no"))
 
 tidy_wb_gdp <- raw_wb_gdp %>% 
    select(-Indicator.Name, -Indicator.Code, -X) %>% 
@@ -152,7 +158,7 @@ tidy_wb_gdp <- raw_wb_gdp %>%
    select(-X) %>% 
    select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
    # filter(year>1999) %>% 
-   mutate(missing = ifelse(is.na(GDP), "yes", "no"))
+   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
 ```
 
 ```{r}
@@ -161,21 +167,35 @@ ggplot(tidy_ntto_spend_y, aes(x=Year, y=Region, fill = Missing)) +
    scale_fill_viridis(discrete = TRUE) +
    ggtitle("Missing Value of NTTO Yearly Spending Data") +
    theme_linedraw()
-   # theme(axis.text.x=element_text(angle=90)) 
+```
+
+```{r fig.height=3, fig.width=9}
+ggplot(tidy_ntto_inbound_m, aes(x=YearMonth, y=Region, fill = Missing)) +
+   geom_tile(color = "white") + 
+   scale_fill_viridis(discrete = TRUE) +
+   ggtitle("Missing Value of NTTO Inbound Data") +
+   theme_linedraw() +
+   theme(axis.text.x=element_text(angle=90))
+```
+
+```{r fig.height=3, fig.width=6}
+ggplot(tidy_ntto_outbound_m, aes(x=YearMonth, y=Region, fill = Missing)) +
+   geom_tile(color = "white") + 
+   scale_fill_viridis(discrete = TRUE) +
+   ggtitle("Missing Value of NTTO Outbound Data") +
+   theme_linedraw() +
+   theme(axis.text.x=element_text(angle=90))
 ```
 
 
 ```{r fig.height=3, fig.width=5}
-ggplot(tidy_wb_gdp, aes(x=Year, y=Country.Name,  fill = Missing)) +
+ggplot(tidy_wb_gdp, aes(x=Year, y=CountryName,  fill = Missing)) +
    geom_tile(color = "white") + 
    scale_fill_viridis(discrete = TRUE) +
    ggtitle("Missing Value of All Interested Countries (1960-2016)") +
    theme_linedraw() +
    theme(axis.text.x=element_text(angle=90)) 
 ```
-
-
-
 
 ## Executive Summary
 > Provide a short nontechnical summary of the most revealing findings of your analysis with no more than 3 static graphs or one interactive graph (or link), written for a nontechnical audience. 
@@ -217,9 +237,73 @@ ggplot(tidy_wb_gdp, aes(x=Year, y=Country.Name,  fill = Missing)) +
 
 #### Data Cleaning
 
+```{r, message=FALSE, warning=FALSE}
+country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
+
+tidy_ntto_spend_y <- raw_ntto_spend_y %>%
+   gather(x_year, spend, -region, -type, -category) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>% 
+   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region))
+
+tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
+   mutate(as.character(TOTAL.ARRIVALS)) %>% 
+   gather(key, val, -year, -MONTH) %>%
+   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
+   filter(!grepl("total", key)) %>%
+   unite(YearMonth, year, Month, sep="/") %>%
+   select(Year, YearMonth, Region=key, Inbound=Arrival) %>% 
+   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"))
+
+tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
+   gather(Month, Outbound, -Year, -Regions) %>% 
+   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), Region=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
+   mutate(Region=gsub('[0-9]+', '', Region)) %>% 
+   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
+   filter(!grepl("air", Region), !Region=='total overseas', !Region=='north america', !Region=='grand total') %>% 
+   unite(YearMonth, year, Month, sep="/") %>% 
+   select(Year, YearMonth, Region, Outbound) %>% 
+   mutate(Missing = ifelse(is.na(Outbound), "yes", "no"))
+
+tidy_wb_gdp <- raw_wb_gdp %>% 
+   select(-Indicator.Name, -Indicator.Code, -X) %>% 
+   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
+   filter(grepl(country_str, Country.Name)) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
+   # filter(year>1999) %>% 
+   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+```
+
+
 #### Challenges
 
+
 #### Analysis
+
+
+
+
+
+
+
+```{r}
+tidy_ntto_inbound_y <- tidy_ntto_inbound_m %>% 
+   group_by(Year, Region) %>% 
+   summarise(TotalInbound=sum(Inbound))
+```
+
+
+```{r}
+tidy_ntto_inbound_y <- tidy_ntto_outbound_m %>% 
+   group_by(Year, Region) %>% 
+   summarise(TotalOutbound=sum(Outbound))
+```
+
+
+
 
 
 ## Conclusion
