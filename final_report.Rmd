@@ -30,6 +30,12 @@ Data is collected from two resources,
 - [`World Bank`](http://data.worldbank.org/indicator/NY.GDP.MKTP.CD): 
 
 
+http://tinet.ita.doc.gov/outreachpages/inbound.general_information.inbound_overview.asp
+
+http://tinet.ita.doc.gov/view/m-2016-I-001/index.asp
+
+http://travel.trade.gov/research/monthly/arrivals/index.asp
+
 NTTO monthly spending
 NTTO yearly spending 
 NTTO monthly inbound 
@@ -66,6 +72,8 @@ library(tidyverse)
 library(viridis)
 library(ggvis)
 library(extracat)
+library(plotly)
+library(zoo)
 ```
 
 ```{r, message=FALSE}
@@ -129,26 +137,36 @@ tidy_ntto_spend_y <- raw_ntto_spend_y %>%
    separate(x_year, c("X", "Year"), sep="X") %>% 
    select(-X) %>% 
    select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>% 
-   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region))
+   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region), Year=factor(Year), Region=factor(Region))
 
 tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
    mutate(as.character(TOTAL.ARRIVALS)) %>% 
    gather(key, val, -year, -MONTH) %>%
    mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
    filter(!grepl("total", key)) %>%
-   unite(YearMonth, year, Month, sep="/") %>%
-   select(Year, YearMonth, Region=key, Inbound=Arrival) %>% 
-   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"))
+   unite(YearMonth, year, Month, sep="-") %>%
+   select(Year, YearMonth, MixRegion=key, Inbound=Arrival) %>% 
+   mutate(MixRegion=recode(MixRegion, 
+                           "latin america  excl mexico "="latin america excl mexico",
+                           "prc  excl hk "="china",
+                           "roc  taiwan "="taiwan")) %>% 
+   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"), Year=factor(Year), Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion)) %>% 
+   arrange(MixRegion, Date)
 
 tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
    gather(Month, Outbound, -Year, -Regions) %>% 
-   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), Region=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
-   mutate(Region=gsub('[0-9]+', '', Region)) %>% 
-   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
-   filter(!grepl("air", Region), !Region=='total overseas', !Region=='north america', !Region=='grand total') %>% 
-   unite(YearMonth, year, Month, sep="/") %>% 
-   select(Year, YearMonth, Region, Outbound) %>% 
-   mutate(Missing = ifelse(is.na(Outbound), "yes", "no"))
+   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), MixRegion=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
+   mutate(MixRegion=gsub("^\\s+|\\s+$", "", MixRegion)) %>% 
+   filter(!grepl("air", MixRegion), !MixRegion=='total overseas', !MixRegion=='north america', !MixRegion=='grand total') %>% 
+   unite(YearMonth, year, Month, sep="-") %>% 
+   mutate(Region=recode(MixRegion, 
+                        "caribbean"="latin america excl mexico",
+                        "central america"="latin america excl mexico",
+                        "south america"="latin america excl mexico")) %>% 
+   mutate(Missing=ifelse(is.na(Outbound), "yes", "no"), Year=factor(Year), Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion), Region=factor(Region)) %>% 
+   select(Region, MixRegion, Year, Date, Missing, Outbound) %>% 
+   arrange(Region, MixRegion, Date)
+
 
 tidy_wb_gdp <- raw_wb_gdp %>% 
    select(-Indicator.Name, -Indicator.Code, -X) %>% 
@@ -161,6 +179,7 @@ tidy_wb_gdp <- raw_wb_gdp %>%
    mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
 ```
 
+
 ```{r}
 ggplot(tidy_ntto_spend_y, aes(x=Year, y=Region, fill = Missing)) +
    geom_tile(color = "white") + 
@@ -169,8 +188,8 @@ ggplot(tidy_ntto_spend_y, aes(x=Year, y=Region, fill = Missing)) +
    theme_linedraw()
 ```
 
-```{r fig.height=3, fig.width=9}
-ggplot(tidy_ntto_inbound_m, aes(x=YearMonth, y=Region, fill = Missing)) +
+```{r}
+ggplot(tidy_ntto_inbound_m, aes(x=Date, y=MixRegion, fill = Missing)) +
    geom_tile(color = "white") + 
    scale_fill_viridis(discrete = TRUE) +
    ggtitle("Missing Value of NTTO Inbound Data") +
@@ -178,8 +197,8 @@ ggplot(tidy_ntto_inbound_m, aes(x=YearMonth, y=Region, fill = Missing)) +
    theme(axis.text.x=element_text(angle=90))
 ```
 
-```{r fig.height=3, fig.width=6}
-ggplot(tidy_ntto_outbound_m, aes(x=YearMonth, y=Region, fill = Missing)) +
+```{r}
+ggplot(tidy_ntto_outbound_m, aes(x=Date, y=MixRegion, fill = Missing)) +
    geom_tile(color = "white") + 
    scale_fill_viridis(discrete = TRUE) +
    ggtitle("Missing Value of NTTO Outbound Data") +
@@ -237,45 +256,43 @@ ggplot(tidy_wb_gdp, aes(x=Year, y=CountryName,  fill = Missing)) +
 
 #### Data Cleaning
 
-```{r, message=FALSE, warning=FALSE}
-country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
+Since the data is very messy, we put many effort on cleaning and extract useful infomation for analysis. 
 
-tidy_ntto_spend_y <- raw_ntto_spend_y %>%
-   gather(x_year, spend, -region, -type, -category) %>% 
-   separate(x_year, c("X", "Year"), sep="X") %>% 
-   select(-X) %>% 
-   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>% 
-   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region))
+1. Convert to correct type
+2. Consolidate name, region, date
 
-tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
-   mutate(as.character(TOTAL.ARRIVALS)) %>% 
-   gather(key, val, -year, -MONTH) %>%
-   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
-   filter(!grepl("total", key)) %>%
-   unite(YearMonth, year, Month, sep="/") %>%
-   select(Year, YearMonth, Region=key, Inbound=Arrival) %>% 
-   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"))
 
-tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
-   gather(Month, Outbound, -Year, -Regions) %>% 
-   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), Region=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
-   mutate(Region=gsub('[0-9]+', '', Region)) %>% 
-   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
-   filter(!grepl("air", Region), !Region=='total overseas', !Region=='north america', !Region=='grand total') %>% 
-   unite(YearMonth, year, Month, sep="/") %>% 
-   select(Year, YearMonth, Region, Outbound) %>% 
-   mutate(Missing = ifelse(is.na(Outbound), "yes", "no"))
 
-tidy_wb_gdp <- raw_wb_gdp %>% 
-   select(-Indicator.Name, -Indicator.Code, -X) %>% 
-   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
-   filter(grepl(country_str, Country.Name)) %>% 
-   separate(x_year, c("X", "Year"), sep="X") %>% 
-   select(-X) %>% 
-   select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
-   # filter(year>1999) %>% 
-   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+Join same region
+
+
+```{r message=FALSE, warning=FALSE}
+region_str <- "africa|asia|canada|latin america (excl mexico)|europe|mexico|middle east|oceania"
+
+inbound_region <- tidy_ntto_inbound_m %>% 
+   filter(grepl(region_str, MixRegion)) %>% 
+   select(Region=MixRegion, Year, Date, Inbound) %>% 
+   group_by(Region, Year, Date) %>% 
+   summarise(TotalInbound=sum(Inbound))
+
+outbound_region <- tidy_ntto_outbound_m %>% 
+   select(Region, Year, Date, Outbound) %>% 
+   group_by(Region, Year, Date) %>% 
+   summarise(TotalOutbound=sum(Outbound))
+
+regional_travel <- inner_join(inbound_region, outbound_region, 
+                              by=c("Region"="Region", "Year"="Year", "Date"="Date"))
+
 ```
+
+
+```{r}
+us_gdp <- tidy_wb_gdp %>% 
+   filter(CountryCode=="USA", Year>2008, Year<2016) %>% 
+   select(Year, GDP) %>% 
+   mutate(Year=factor(Year))
+```
+
 
 
 #### Challenges
@@ -283,9 +300,134 @@ tidy_wb_gdp <- raw_wb_gdp %>%
 
 #### Analysis
 
+We first visualized the trend of inbound for all region, from the plot we can tell that:
+1. There's a growing trend for most regions.
+2. Canada has the highest number
+3. Inbound is very seasonal, for example, the peak of Canada always happens on July.  
+
+```{r message=FALSE, warning=FALSE}
+inbound_region %>% spread(Region, TotalInbound) %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1, dash = 'dot')) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1, dash = 'dot')) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1, dash = 'dot')) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1, dash = 'dot')) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1, dash = 'dot')) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1, dash = 'dot')) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>% 
+  layout(title = "Inbound",  xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+Then we move to the Outbound of all regions, from graph belowe we observe several things:
+1. Mexico is the number one Outbound country. 
+2. A huge pump happend on 2009 for Mexico.
+3. Outbound number of mexico is increasing, however for other regions it seems stable.
+4. Like Inbound, Outbound shows a seasonal pattern as well.
+
+
+```{r message=FALSE, warning=FALSE}
+outbound_region %>% spread(Region, TotalOutbound) %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1, dash = 'dot')) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1, dash = 'dot')) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1, dash = 'dot')) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1, dash = 'dot')) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1, dash = 'dot')) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1, dash = 'dot')) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>% 
+  layout(title = "Outbound",  xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+Since Canada and Mexico dominate the number of people and the interest of different behaviour per region, we start looking at inbound and outbound per region. 
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=='africa') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Africa", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=='asia') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Asia", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=='canada') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Canada", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=='europe') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Europe", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=="latin america excl mexico") %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Latin America excl Mexico", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=='mexico') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Mexico", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=='middle east') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Middle East", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
+
+
+```{r message=FALSE, warning=FALSE}
+regional_travel %>% 
+   filter(Region=='oceania') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
+   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
+  layout(title = "Oceania", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+```
 
 
 
+```{r message=FALSE, warning=FALSE}
+tidy_ntto_spend_y %>% 
+   filter(Region!='european union ' & Region!='south-central america ') %>% 
+   mutate(Region=recode(Region, "asia-pacific"="asia")) %>% 
+   arrange(Region, Year)
+```
+
+
+Finally, we select several region and combine inbound, outbound with GDP
 
 
 
@@ -301,8 +443,6 @@ tidy_ntto_inbound_y <- tidy_ntto_outbound_m %>%
    group_by(Year, Region) %>% 
    summarise(TotalOutbound=sum(Outbound))
 ```
-
-
 
 
 
