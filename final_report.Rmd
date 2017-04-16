@@ -297,6 +297,10 @@ us_gdp <- tidy_wb_gdp %>%
 
 
 #### Challenges
+There are several challenges in our project:
+1. Due to the problems in the data set such as inconsistency, we have to spend much time in cleaning and re-organizing it, which makes the work tedious and laborious. 
+2. We need country level data in some graphs; however, what we can acquire from the dataset is region level. In that case, we have to project the data onto the whole region, which makes the analysis not comprehensive and detailed.
+3. Shiny is a great tool for creating interactive data visualizations in R; however, we do not have much experience in it, and therefore have to spend time learning it, which is not easy in such a short time.
 
 
 #### Analysis
@@ -440,6 +444,33 @@ yearly_spend %>%
 
 ```
 
+
+```{r}
+yearly_spend %>%
+   group_by(Type, Year) %>%
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Type, TotalSpend) %>%
+   plot_ly(x = ~Year, y = ~`Payments (imports)`, type = 'bar', name = 'Payments', marker = list(color = 'rgb(55, 83, 109)')) %>%
+   add_trace(y = ~`Receipts (exports)`, name = 'Receipts', marker = list(color = 'rgb(26, 118, 255)')) %>%
+   layout(title = 'Yearly Spending',
+         xaxis = list(
+           title = "",
+           tickfont = list(
+             size = 14,
+             color = 'rgb(107, 107, 107)')),
+         yaxis = list(
+           title = 'Spend',
+           titlefont = list(
+             size = 16,
+             color = 'rgb(107, 107, 107)'),
+           tickfont = list(
+             size = 14,
+             color = 'rgb(107, 107, 107)')),
+         # legend = list(x = 0, y = 1, bgcolor = 'rgba(255, 255, 255, 0)', bordercolor = 'rgba(255, 255, 255, 0)'),
+         barmode = 'group', bargap = 0.15, bargroupgap = 0.1)
+```
+
+
 ```{r message=FALSE, warning=FALSE}
 yearly_spend %>% 
    filter(Type=="Payments (imports)") %>% 
@@ -448,11 +479,11 @@ yearly_spend %>%
    summarise(TotalSpend=sum(Spend)) %>% 
    spread(Region, TotalSpend) %>% 
    plot_ly(x = ~Year) %>%
-   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 1)) %>% 
+   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(width = 2)) %>%
+   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(width = 2)) %>%
+   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 2)) %>%
+   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 2)) %>%
+   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 2)) %>% 
    layout(title = "Payments (imports)", xaxis = list(title = "Year"), yaxis = list(title = "Spend"))
 ```
 
@@ -474,6 +505,20 @@ yearly_spend %>%
 ```
 
 
+```{r}
+yearly_spend %>% 
+   filter(Type=="Receipts (exports)") %>% 
+   select(-Type, -Region) %>% 
+   group_by(Category, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Category, TotalSpend) %>% 
+   plot_ly(x = ~Year, y = ~Education, type = 'bar', name = 'Education') %>%
+   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers') %>% 
+   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel') %>% 
+   layout(yaxis = list(title = 'Spend'), barmode = 'group')
+```
+
+
 Finally, we select several region and combine inbound, outbound with GDP
 
 
@@ -487,6 +532,8 @@ A note on style:
 You are encouraged to be as intellectually honest as possible. That means pointing out flaws in your work, detailing obstacles, disagreements, decision points, etc. -- the kinds of "behind-the-scene" things that are important but often left out of reports. You may use the first person ("I"/"We") or specific team members' names, as relevant.
 
 
+The goal of this project is to answer the four questions raised above. We have accomplished the task despite of some flaws and limitations. For instance, the latest data we could find is for the year 2015, which is more than one year ago. In that case, we could not say the analysis is very persuasive since the data source is not up to date. We are unable to get data that are more detailed so that we cannot dig deeper to find root causes of some observations.  At the very beginning, we thought the data was exhaustive and comprehensive and we made plenty of hypotheses and expectations based on the first impression; however, we find that most of our ideas are not realistic as we investigate the data more. Unfortunately, we have to discard some interesting ideas due the inconstancy in the dataset. 
+For the future work, we could introduce more supportive data such as the inbound and outbound traveler data of other countries, and then compare it with the USA. We believe that it would reveal results that are more interesting.
 
 
 
