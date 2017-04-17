@@ -274,26 +274,19 @@ inbound_region <- tidy_ntto_inbound_m %>%
    filter(grepl(region_str, MixRegion)) %>% 
    select(Region=MixRegion, Year, Date, Inbound) %>% 
    group_by(Region, Year, Date) %>% 
-   summarise(TotalInbound=sum(Inbound))
+   summarise(TotalInbound=sum(Inbound)) %>% 
+   ungroup
 
 outbound_region <- tidy_ntto_outbound_m %>% 
    select(Region, Year, Date, Outbound) %>% 
    group_by(Region, Year, Date) %>% 
-   summarise(TotalOutbound=sum(Outbound))
+   summarise(TotalOutbound=sum(Outbound)) %>% 
+   ungroup
 
 regional_travel <- inner_join(inbound_region, outbound_region, 
                               by=c("Region"="Region", "Year"="Year", "Date"="Date"))
 
 ```
-
-
-```{r}
-us_gdp <- tidy_wb_gdp %>% 
-   filter(CountryCode=="USA", Year>2008, Year<2016) %>% 
-   select(Year, GDP) %>% 
-   mutate(Year=factor(Year))
-```
-
 
 
 #### Challenges
@@ -310,18 +303,39 @@ We first visualized the trend of inbound for all region, from the plot we can te
 2. Canada has the highest number
 3. Inbound is very seasonal, for example, the peak of Canada always happens on July.  
 
+
+
 ```{r message=FALSE, warning=FALSE}
-inbound_region %>% spread(Region, TotalInbound) %>% 
+p1 <- inbound_region %>% 
+   spread(Region, TotalInbound) %>% 
+   filter(Date>'2008-11') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1, dash = 'dot')) %>%
-   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1, dash = 'dot')) %>%
-   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1, dash = 'dot')) %>%
-   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1, dash = 'dot')) %>%
-   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1, dash = 'dot')) %>%
-   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1, dash = 'dot')) %>%
-   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>% 
-  layout(title = "Inbound",  xaxis = list(title = "Date"), yaxis = list(title = "People"))
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1)) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1)) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1)) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1)) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1)) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1)) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1)) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1)) 
+
+p2 <- outbound_region %>% spread(Region, TotalOutbound) %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1), showlegend=F) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1), showlegend=F) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1), showlegend=F) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1), showlegend=F) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1), showlegend=F) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1), showlegend=F) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+subplot(p1, p2, nrows=2, shareX=T) %>%
+  layout(title = "Inbound v.s. Outbound",
+         yaxis = list(title = "Inbound"),
+         yaxis2 = list(title = "Outbound"),
+         legend = list(orientation = 'h')
+         )
 ```
 
 Then we move to the Outbound of all regions, from graph belowe we observe several things:
@@ -331,95 +345,70 @@ Then we move to the Outbound of all regions, from graph belowe we observe severa
 4. Like Inbound, Outbound shows a seasonal pattern as well.
 
 
-```{r message=FALSE, warning=FALSE}
-outbound_region %>% spread(Region, TotalOutbound) %>% 
-   plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1, dash = 'dot')) %>%
-   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1, dash = 'dot')) %>%
-   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1, dash = 'dot')) %>%
-   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1, dash = 'dot')) %>%
-   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1, dash = 'dot')) %>%
-   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1, dash = 'dot')) %>%
-   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>% 
-  layout(title = "Outbound",  xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
-
 Since Canada and Mexico dominate the number of people and the interest of different behaviour per region, we start looking at inbound and outbound per region. 
 
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
-   filter(Region=='africa') %>% 
-   plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Africa", xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
 
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
+```{r fig.height=20, message=FALSE}
+p1 <- regional_travel %>% 
+   filter(Region=='africa') %>% 
+   plot_ly(x = ~as.POSIXct(Date), height = 1000) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1)) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1)) %>% 
+   layout(autosize=F)
+
+p2 <- regional_travel %>% 
    filter(Region=='asia') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Asia", xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
 
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
+p3 <- regional_travel %>% 
    filter(Region=='canada') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Canada", xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
 
-
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
+p4 <- regional_travel %>% 
    filter(Region=='europe') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Europe", xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
 
-
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
-   filter(Region=="latin america excl mexico") %>% 
+p5 <- regional_travel %>% 
+   filter(Region=='latin america excl mexico') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Latin America excl Mexico", xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
-
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+p6 <- regional_travel %>% 
    filter(Region=='mexico') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Mexico", xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
 
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
+p7 <- regional_travel %>% 
    filter(Region=='middle east') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Middle East", xaxis = list(title = "Date"), yaxis = list(title = "People"))
-```
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
 
-
-```{r message=FALSE, warning=FALSE}
-regional_travel %>% 
+p8 <- regional_travel %>% 
    filter(Region=='oceania') %>% 
    plot_ly(x = ~as.POSIXct(Date)) %>%
-   add_trace(y=~TotalInbound, name='Inbound', mode='lines', line = list(color="gray", width = 1, dash = 'dot')) %>%
-   add_trace(y=~TotalOutbound, name='Outbound', mode='lines', line = list(color="blue", width = 1, dash = 'dot')) %>%
-  layout(title = "Oceania", xaxis = list(title = "Date"), yaxis = list(title = "People"))
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+subplot(p1, p2, p3, p4, p5, p6, p7, p8, nrows=8) %>%
+  layout(title = "Regional Inbound and Outbound",
+         yaxis = list(title = "Africa"),
+         yaxis2 = list(title = "Asia"), 
+         yaxis3 = list(title = "Canada"),
+         yaxis4 = list(title = "Europe"),
+         yaxis5 = list(title = "Latin America"),
+         yaxis6 = list(title = "Mexico"),
+         yaxis7 = list(title = "Middle East"),
+         yaxis8 = list(title = "Oceania"),
+         legend = list(orientation = 'h', x = 0, y = 1.005)
+         )
 ```
 
 
@@ -437,10 +426,13 @@ yearly_spend %>%
    group_by(Type, Year) %>%
    summarise(TotalSpend=sum(Spend)) %>% 
    spread(Type, TotalSpend) %>%
+   ungroup %>% 
    plot_ly(x = ~Year) %>%
-   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(width = 1)) %>%
+   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(color="blue", width = 1)) %>%
    add_trace(y=~`Receipts (exports)`, type="scatter", name='Receipts (exports)', mode = 'lines+markers', line = list(width = 1)) %>% 
-   layout(title = "Yearly Spending", xaxis = list(title = "Year"), yaxis = list(title = "Spend"))
+   layout(title = "Yearly Spending", 
+          xaxis = list(title = "Year"), yaxis = list(title = "Spend"), 
+          legend = list(orientation = 'h', x = 0.5, y = 1.005))
 
 ```
 
@@ -459,14 +451,15 @@ yearly_spend %>%
              size = 14,
              color = 'rgb(107, 107, 107)')),
          yaxis = list(
-           title = 'Spend',
+           title = 'Spend (Billion $)',
            titlefont = list(
              size = 16,
              color = 'rgb(107, 107, 107)'),
            tickfont = list(
              size = 14,
              color = 'rgb(107, 107, 107)')),
-         # legend = list(x = 0, y = 1, bgcolor = 'rgba(255, 255, 255, 0)', bordercolor = 'rgba(255, 255, 255, 0)'),
+         legend = list(orientation = 'h', x = 0, y = 1, 
+                       bgcolor = 'rgba(255, 255, 255, 0)', bordercolor = 'rgba(255, 255, 255, 0)'),
          barmode = 'group', bargap = 0.15, bargroupgap = 0.1)
 ```
 
@@ -484,7 +477,10 @@ yearly_spend %>%
    add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 2)) %>%
    add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 2)) %>%
    add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 2)) %>% 
-   layout(title = "Payments (imports)", xaxis = list(title = "Year"), yaxis = list(title = "Spend"))
+   layout(title = "Payments (imports)", 
+          xaxis = list(title = "Year"), 
+          yaxis = list(title = "Spend"),
+          legend = list(orientation = 'h'))
 ```
 
 
@@ -501,9 +497,50 @@ yearly_spend %>%
    add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 1)) %>%
    add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 1)) %>%
    add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 1)) %>% 
-   layout(title = "Receipts (exports)", xaxis = list(title = "Year"), yaxis = list(title = "Spend"))
+   layout(title = "Receipts (exports)", 
+          xaxis = list(title = "Year"), 
+          yaxis = list(title = "Spend"), 
+          legend = list(orientation = 'h'))
 ```
 
+
+```{r}
+yearly_spend %>%
+   group_by(Type, Year) %>%
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Type, TotalSpend) %>%
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(color="blue", width = 1)) %>%
+   add_trace(y=~`Receipts (exports)`, type="scatter", name='Receipts (exports)', mode = 'lines+markers', line = list(width = 1)) %>% 
+   layout(title = "Africa", 
+          xaxis = list(title = "Year"), yaxis = list(title = "Spend"), 
+          legend = list(orientation = 'h', x = 0.5, y = 1.005))
+```
+
+
+
+```{r}
+tidy_wb_gdp %>% 
+   filter(CountryCode=="USA", Year>2000, Year<2016) %>% 
+   select(Year, GDP) %>% 
+   mutate(Year=factor(Year)) %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~GDP, type="scatter", name='US', mode = 'lines+markers', line = list(width = 1))
+```
+
+
+```{r}
+yearly_spend %>% 
+   filter(Type=="Receipts (exports)") %>% 
+   select(-Type, -Region) %>% 
+   group_by(Category, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Category, TotalSpend) %>% 
+   plot_ly(x = ~Year, y = ~Education, type = 'bar', name = 'Education') %>%
+   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers') %>% 
+   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel') %>% 
+   layout(yaxis = list(title = 'Spend'), barmode = 'group')
+```
 
 ```{r}
 yearly_spend %>% 
@@ -522,9 +559,6 @@ yearly_spend %>%
 Finally, we select several region and combine inbound, outbound with GDP
 
 
-
-
-
 ## Conclusion
 > Discuss limitations and future directions, lessons learned.
 
@@ -532,7 +566,7 @@ A note on style:
 You are encouraged to be as intellectually honest as possible. That means pointing out flaws in your work, detailing obstacles, disagreements, decision points, etc. -- the kinds of "behind-the-scene" things that are important but often left out of reports. You may use the first person ("I"/"We") or specific team members' names, as relevant.
 
 
-The goal of this project is to answer the four questions raised above. We have accomplished the task despite of some flaws and limitations. For instance, the latest data we could find is for the year 2015, which is more than one year ago. In that case, we could not say the analysis is very persuasive since the data source is not up to date. We are unable to get data that are more detailed so that we cannot dig deeper to find root causes of some observations.  At the very beginning, we thought the data was exhaustive and comprehensive and we made plenty of hypotheses and expectations based on the first impression; however, we find that most of our ideas are not realistic as we investigate the data more. Unfortunately, we have to discard some interesting ideas due the inconstancy in the dataset. 
+The goal of this project is to answer the four questions raised above. We have accomplished the task despite of some flaws and limitations. For instance, the latest data we could find is for the year 2015, which is more than one year ago. In that case, we could not say the analysis is very persuasive since the data source is not up to date. We are unable to get data that are more detailed so that we cannot dig deeper to find root causes of some observations. At the very beginning, we thought the data was exhaustive and comprehensive and we made plenty of hypotheses and expectations based on the first impression; however, we find that most of our ideas are not realistic as we investigate the data more. Unfortunately, we have to discard some interesting ideas due the inconstancy in the dataset. 
 For the future work, we could introduce more supportive data such as the inbound and outbound traveler data of other countries, and then compare it with the USA. We believe that it would reveal results that are more interesting.
 
 
