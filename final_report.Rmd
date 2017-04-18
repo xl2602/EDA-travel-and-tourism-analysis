@@ -6,6 +6,7 @@ output:
       toc: true
       theme: united
       code_folding: hide
+fontsize: 16pt
 ---
 
 ## Introduction
@@ -29,32 +30,11 @@ Data is collected from two resources,
     + [`Outbound Information`](http://travel.trade.gov/outreachpages/outbound.general_information.outbound_overview.html) 
 - [`World Bank`](http://data.worldbank.org/indicator/NY.GDP.MKTP.CD): 
 
+Although NTTO provides plenty of information we need, it is not easy to collect and combine them together. There is much unavoidable manual work to do in the collecting process because of the inconsistent formatting (data formats may vary from year to year), file types (some are even pdfs) and location of these files. For example, in order to get monthly arrival information per region, we have to download each year’s excel files, and then clean, select and combine them into a final master table that is easier to manipulate with in R. 
 
-http://tinet.ita.doc.gov/outreachpages/inbound.general_information.inbound_overview.asp
+In the end, we collect several master tables from NTTO: yearly spending per region with three categories, monthly inbound visitation per country and monthly outbound visitation per country. 
 
-http://tinet.ita.doc.gov/view/m-2016-I-001/index.asp
-
-http://travel.trade.gov/research/monthly/arrivals/index.asp
-
-NTTO monthly spending
-NTTO yearly spending 
-NTTO monthly inbound 
-NTTO monthly outbound
-Word Bank GDP 
-
-
-From NTTO, ...
-NTTO do not provide raw data
-
-Although NTTO provides plenty of information we need, it is not easy to collect and combine them together. There is much unavoidable manual work to do in the collecting process because of the inconsistent formatting (data formats may vary from year to year), file types (some are pdfs) and location of these files. For example, in order to get monthly arrival information per region, we have to download each year’s excel files, and then clean, select and combine them into a final master table that is easier to manipulate with in R. 
-
-In the end, we collect several master tables from NTTO: yearly spending per region with three categories, total monthly spending with three categories, monthly inbound visitation per country and monthly outbound visitation per country. We may use other tables as complementary tables.
-
-From World Bank,... 
-On this website, we are trying to get GDP per country per year, as a measurement of economy.
-
-GDP data from World Bank is easier to clean. Further, we will load these tables to R and use dplyr and tidyr to fit the data for our analysis. 
-
+GDP data from World Bank is much easier to obtain, we only need to download csv file from the website. Further, we will load these tables to R and use dplyr and tidyr to fit the data for our analysis. 
 
 ## Team
 > List team members and a description of how each contributed to the project. (If you're working alone, briefly describe the stages of the project.)
@@ -63,9 +43,8 @@ GDP data from World Bank is easier to clean. Further, we will load these tables 
 
 - Hanlin Wu: cleaning the data, testing various visualizations, creating the interactive app, focusing on the export part.
 
-
+<br>
 ## Analysis of Data Quality
-> Provide a detailed, well-organized description of data quality, including textual description, graphs, and code.
 
 ```{r, message=FALSE}
 library(tidyverse)
@@ -84,29 +63,23 @@ raw_ntto_outbound_m <- tbl_df(read.csv("clean_data/clean_monthly_us_to_internati
 raw_wb_gdp <- tbl_df(read.csv("clean_data/API_NY.GDP.MKTP.CD_DS2_en_csv_v2.csv", header = TRUE, skip=4))
 ```
 
-Data we have are: monthly spending from NTTO, yearly spending from NTTO, monthly inbound from NTTO, monthly outbound from NTTO and GDP from Word Bank. In order to analyze data quality of our data, we need first to take a look at them. 
-
-*Output of `str` has been truncated to get a more compact look in report* 
+In order to analyze data quality of our data, we need first to take a look at each of them. And we truncat the output for a more compact look in report.
+<br>
+<br>
 
 - Yearly Spending from NTTO
 ```{r}
 str(raw_ntto_spend_y, list.len=5)
 ```
-
-- Monthly Spending from NTTO
-```{r}
-# str(raw_ntto_spend_m, list.len=4)
-```
-
-- Monthly Inbound from NTTO 
-```{r}
-str(raw_ntto_inbound_m, list.len=5)
-```
+<br>
+<br>
 
 - Monthly Outbound from NTTO
 ```{r}
 str(raw_ntto_outbound_m, list.len=4)
 ```
+<br>
+<br>
 
 - GDP from Word Bank
 ```{r}
@@ -120,54 +93,18 @@ The internal structure of these data indicates several data quality issues:
 * Messy column names:
       + Some columns like `X1960` is weird and we should remove the extra "X".
 * Wrong types of values:
-      + Some numerical value have been recognized as string (e.g. "1,707,635", "$1,372 ")
+      + Some numerical value have been recognized as string (e.g. "1,707,635")
 * Inconsistency of categorical variable values and column names:
-      + `category` in Yearly Spending and `X.1` (The content of this column represents spending category as well) in Monthly Spending have different number of factors and for the same category. For example, we suspisious that "Education related" and "Medical/Education/Workers Spending" should refer to the same category. 
       + In some table month is represented as first three letters (e.g. Jan) and in other table is represented as full name (e.g. APRIL).
       + In consistency of upper/lower case of strings (e.g. `Year` and `year`)
+* Country and region mized together
 * Missing values
-      + In order to show missing value more clearly, we pre-processed data, the detail about how to clean data will be discussed later in Main Analysis part.
+      + For most of data, we do not have NA values, except GDP. 
       + As what are shown in the graph below, we only have some missing values in GDP data for countries we are interested. But the missing values are either before 1990 nor after 2016, which would not influence our analysis.
 
-```{r, message=FALSE, warning=FALSE}
+
+```{r fig.height=3, fig.width=5}
 country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
-
-tidy_ntto_spend_y <- raw_ntto_spend_y %>%
-   gather(x_year, spend, -region, -type, -category) %>% 
-   separate(x_year, c("X", "Year"), sep="X") %>% 
-   select(-X) %>% 
-   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>%  
-   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
-   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region), Year=factor(Year), Region=factor(Region))
-
-tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
-   mutate(as.character(TOTAL.ARRIVALS)) %>% 
-   gather(key, val, -year, -MONTH) %>%
-   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
-   filter(!grepl("total", key)) %>%
-   unite(YearMonth, year, Month, sep="-") %>%
-   select(Year, YearMonth, MixRegion=key, Inbound=Arrival) %>% 
-   mutate(MixRegion=recode(MixRegion, 
-                           "latin america  excl mexico "="latin america excl mexico",
-                           "prc  excl hk "="china",
-                           "roc  taiwan "="taiwan")) %>% 
-   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"), Year=factor(Year), Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion)) %>% 
-   arrange(MixRegion, Date)
-
-tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
-   gather(Month, Outbound, -Year, -Regions) %>% 
-   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), MixRegion=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
-   mutate(MixRegion=gsub("^\\s+|\\s+$", "", MixRegion)) %>% 
-   filter(!grepl("air", MixRegion), !MixRegion=='total overseas', !MixRegion=='north america', !MixRegion=='grand total') %>% 
-   unite(YearMonth, year, Month, sep="-") %>% 
-   mutate(Region=recode(MixRegion, 
-                        "caribbean"="latin america excl mexico",
-                        "central america"="latin america excl mexico",
-                        "south america"="latin america excl mexico")) %>% 
-   mutate(Missing=ifelse(is.na(Outbound), "yes", "no"), Year=factor(Year), Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion), Region=factor(Region)) %>% 
-   select(Region, MixRegion, Year, Date, Missing, Outbound) %>% 
-   arrange(Region, MixRegion, Date)
-
 
 tidy_wb_gdp <- raw_wb_gdp %>% 
    select(-Indicator.Name, -Indicator.Code, -X) %>% 
@@ -178,40 +115,11 @@ tidy_wb_gdp <- raw_wb_gdp %>%
    select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
    # filter(year>1999) %>% 
    mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
-```
 
-
-```{r}
-ggplot(tidy_ntto_spend_y, aes(x=Year, y=Region, fill = Missing)) +
-   geom_tile(color = "white") + 
-   scale_fill_viridis(discrete = TRUE) +
-   ggtitle("Missing Value of NTTO Yearly Spending Data") +
-   theme_linedraw()
-```
-
-```{r}
-ggplot(tidy_ntto_inbound_m, aes(x=Date, y=MixRegion, fill = Missing)) +
-   geom_tile(color = "white") + 
-   scale_fill_viridis(discrete = TRUE) +
-   ggtitle("Missing Value of NTTO Inbound Data") +
-   theme_linedraw() +
-   theme(axis.text.x=element_text(angle=90))
-```
-
-```{r}
-ggplot(tidy_ntto_outbound_m, aes(x=Date, y=MixRegion, fill = Missing)) +
-   geom_tile(color = "white") + 
-   scale_fill_viridis(discrete = TRUE) +
-   ggtitle("Missing Value of NTTO Outbound Data") +
-   theme_linedraw() +
-   theme(axis.text.x=element_text(angle=90))
-```
-
-
-```{r fig.height=3, fig.width=5}
 ggplot(tidy_wb_gdp, aes(x=Year, y=CountryName,  fill = Missing)) +
    geom_tile(color = "white") + 
-   scale_fill_viridis(discrete = TRUE) +
+   scale_fill_manual(values=c("blue", "orange")) +
+   # scale_fill_viridis(discrete = TRUE) +
    ggtitle("Missing Value of All Interested Countries (1960-2016)") +
    theme_linedraw() +
    theme(axis.text.x=element_text(angle=90)) 
@@ -248,23 +156,66 @@ ggplot(tidy_wb_gdp, aes(x=Year, y=CountryName,  fill = Missing)) +
 ## Main Analysis
 > Provide a detailed, well-organized description of your findings, including textual description, graphs, and code. Your focus should be on both the results and the process. Include, as reasonable and relevant, approaches that didn't work, challenges, the data cleaning process, etc.
 
-• The guidelines for the Executive Summary above do NOT apply to exploratory data analysis. Your main concern is designing graphs that reveal patterns and trends.
-
-• As noted in Hmk #4, do not use circles, that is: bubbles, pie charts, or polar coordinates.
-
-• Use stacked bar charts sparingly. Try grouped bar charts and faceting as alternatives, and only choose stacked bar charts if they truly do a better job than the alternatives for observing patterns.
-
+<br>
 
 ### Data Cleaning
 
-Since the data is very messy, we put many effort on cleaning and extract useful infomation for analysis. 
+Since the our data is very messy, we put many effort on cleaning and extract useful infomation from it. Our data cleaning can be summarized into two parts:
 
-1. Convert to correct type
-2. Consolidate name, region, date
+1. Conqure all the data quality issues mention in privous session.
+      - As what shown in the code, there are many selection, mutation and manipulation going on for each raw data. 
+```{r, message=FALSE, warning=FALSE}
+country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
 
+tidy_ntto_spend_y <- raw_ntto_spend_y %>%
+   gather(x_year, spend, -region, -type, -category) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>%  
+   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
+   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region), Year=factor(Year), Region=factor(Region))
 
-Join same region
+tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
+   mutate(as.character(TOTAL.ARRIVALS)) %>% 
+   gather(key, val, -year, -MONTH) %>%
+   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
+   filter(!grepl("total", key)) %>%
+   unite(YearMonth, year, Month, sep="-") %>%
+   select(Year, YearMonth, MixRegion=key, Inbound=Arrival) %>% 
+   mutate(MixRegion=recode(MixRegion, 
+                           "latin america  excl mexico "="latin america excl mexico",
+                           "prc  excl hk "="china",
+                           "roc  taiwan "="taiwan")) %>% 
+   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"), Year=factor(Year), Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion)) %>% 
+   arrange(MixRegion, Date)
 
+tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
+   gather(Month, Outbound, -Year, -Regions) %>% 
+   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), MixRegion=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
+   mutate(MixRegion=gsub("^\\s+|\\s+$", "", MixRegion)) %>% 
+   filter(!grepl("air", MixRegion), !MixRegion=='total overseas', !MixRegion=='north america', !MixRegion=='grand total') %>% 
+   unite(YearMonth, year, Month, sep="-") %>% 
+   mutate(Region=recode(MixRegion, 
+                        "caribbean"="latin america excl mexico",
+                        "central america"="latin america excl mexico",
+                        "south america"="latin america excl mexico")) %>% 
+   mutate(Missing=ifelse(is.na(Outbound), "yes", "no"), Year=factor(Year),
+          Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion), Region=factor(Region)) %>% 
+   select(Region, MixRegion, Year, Date, Missing, Outbound) %>% 
+   arrange(Region, MixRegion, Date)
+
+tidy_wb_gdp <- raw_wb_gdp %>% 
+   select(-Indicator.Name, -Indicator.Code, -X) %>% 
+   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
+   filter(grepl(country_str, Country.Name)) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
+   # filter(year>1999) %>% 
+   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+```
+
+2. Combine/Join some data togetgher to make further visualization easier. 
 
 ```{r message=FALSE, warning=FALSE}
 region_str <- "africa|asia|canada|latin america (excl mexico)|europe|mexico|middle east|oceania"
@@ -296,8 +247,11 @@ There are several challenges in our project:
 2. We need country level data in some graphs; however, what we can acquire from the dataset is region level. In that case, we have to project the data onto the whole region, which makes the analysis not comprehensive and detailed.
 3. Shiny is a great tool for creating interactive data visualizations in R; however, we do not have much experience in it, and therefore have to spend time learning it, which is not easy in such a short time.
 
+<br>
 
 ### Analysis
+
+<br>
 
 #### Travel and Tourism Analysis
 
@@ -453,10 +407,9 @@ subplot(p1, p2, p3, p4, p5, p6, p7, p8, nrows=8) %>%
 
 - Oceania: Like Asia, less of U.S. citizens visit Oceania region since mid 2010. 
 
+<br>
 
 #### Spend Analysis
-
-
 
 ```{r}
 yearly_spend <- tidy_ntto_spend_y %>% 
