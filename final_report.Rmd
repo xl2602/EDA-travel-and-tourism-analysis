@@ -255,13 +255,12 @@ ggplot(tidy_wb_gdp, aes(x=Year, y=CountryName,  fill = Missing)) +
 • Use stacked bar charts sparingly. Try grouped bar charts and faceting as alternatives, and only choose stacked bar charts if they truly do a better job than the alternatives for observing patterns.
 
 
-#### Data Cleaning
+### Data Cleaning
 
 Since the data is very messy, we put many effort on cleaning and extract useful infomation for analysis. 
 
 1. Convert to correct type
 2. Consolidate name, region, date
-
 
 
 Join same region
@@ -289,21 +288,49 @@ regional_travel <- inner_join(inbound_region, outbound_region,
 ```
 
 
-#### Challenges
+### Challenges
+
 There are several challenges in our project:
+
 1. Due to the problems in the data set such as inconsistency, we have to spend much time in cleaning and re-organizing it, which makes the work tedious and laborious. 
 2. We need country level data in some graphs; however, what we can acquire from the dataset is region level. In that case, we have to project the data onto the whole region, which makes the analysis not comprehensive and detailed.
 3. Shiny is a great tool for creating interactive data visualizations in R; however, we do not have much experience in it, and therefore have to spend time learning it, which is not easy in such a short time.
 
 
-#### Analysis
+### Analysis
 
-We first visualized the trend of inbound for all region, from the plot we can tell that:
-1. There's a growing trend for most regions.
-2. Canada has the highest number
-3. Inbound is very seasonal, for example, the peak of Canada always happens on July.  
+#### Travel and Tourism Analysis
+
+```{r fig.height=3}
+regional_travel %>% 
+   select(Year, TotalInbound, TotalOutbound) %>% 
+   group_by(Year) %>% 
+   summarise(TotalInbound=sum(TotalInbound), TotalOutbound=sum(TotalOutbound)) %>% 
+   plot_ly(x = ~Year, y = ~TotalInbound, type = 'bar', name = 'Inbound', marker = list(color = 'rgb(55, 83, 109)')) %>%
+add_trace(y = ~TotalOutbound, name = 'Outbound', marker = list(color = 'rgb(26, 118, 255)')) %>%
+layout(title = 'Yearly Inbound and Outbound',
+      xaxis = list(
+        title = "",
+        tickfont = list(
+          size = 14,
+          color = 'rgb(107, 107, 107)')),
+      yaxis = list(
+        title = 'Number of People',
+        titlefont = list(
+          size = 16,
+          color = 'rgb(107, 107, 107)'),
+        tickfont = list(
+          size = 14,
+          color = 'rgb(107, 107, 107)')),
+      legend = list(orientation = 'h', x = 0, y = 1, 
+                    bgcolor = 'rgba(255, 255, 255, 0)', bordercolor = 'rgba(255, 255, 255, 0)'),
+      barmode = 'group', bargap = 0.15)
+```
 
 
+The United States is one of the largest destinations for visitors and has a large amount outbound journeys as well. The numbers of inbound and outbound have increased a lot from 2009 to 2010. Between 2010 to 2013, the number of international visitors raised a little bit each year however the amound of outbound is kind of stable. Since 2013, both of them grown a lot and finally achieved 77.5 million international visitations and 85.6 million outbound travellers in 2015. 
+
+Naturally we start wondering what are the most popular destination for americans and where are these international vistors come from? To answer these questions, we break down the graph into smaller regions. 
 
 ```{r message=FALSE, warning=FALSE}
 p1 <- inbound_region %>% 
@@ -338,15 +365,14 @@ subplot(p1, p2, nrows=2, shareX=T) %>%
          )
 ```
 
-Then we move to the Outbound of all regions, from graph belowe we observe several things:
-1. Mexico is the number one Outbound country. 
-2. A huge pump happend on 2009 for Mexico.
-3. Outbound number of mexico is increasing, however for other regions it seems stable.
-4. Like Inbound, Outbound shows a seasonal pattern as well.
+After separating each region out, we observed several things:
 
+- Most of the international travellers are come from Canada, Mexico, Europe, and Asia. 
+- Mexico, Canada, Europe, and Latin America except Mexico are the top destinations for americans. 
+- Seasonality exists in each line. Usually peak is reached in summer. For example, every year of July, the number of canada vistors reaches its highest peak of the year.
+- A boom in amount of visitors from Latin America except Mexico in the begining of 2014 and a boom in amount of people travel to Mexico in the start of 2010.
 
-Since Canada and Mexico dominate the number of people and the interest of different behaviour per region, we start looking at inbound and outbound per region. 
-
+We further draws inbound and outbound per region to better explore the hidden pattern individually.
 
 ```{r fig.height=20, message=FALSE}
 p1 <- regional_travel %>% 
@@ -412,6 +438,35 @@ subplot(p1, p2, p3, p4, p5, p6, p7, p8, nrows=8) %>%
 ```
 
 
+- Africa: There are more and more people from Africa travel to U.S. since 2013, but the number of american who go to Africa is very stable for past 7 years.
+      
+- Asia: More and more Asias come to U.S, however, less Americans go to Asia after May 2010. Another thing to notice is the number of visitors from Asia grows faster in July compare to other month. This is probabaly due to the increase of foreign students.
+
+- Canada: 
+
+- Europe: 
+
+- Latin America except Mexico: 
+
+- Mexico: A boom of number of outbound happens in the end of 2009. We did a lot research online and found news about with topics about More Mexicans Leaving Than Coming to the U.S. So we think the 
+
+- Middle East: Both the number of inbound and outbound increase by year.
+
+
+- Oceania: Like Asia, less of U.S. citizens visit Oceania region since mid 2010. 
+
+
+Then we move to the Outbound of all regions, from graph belowe we observe several things:
+1. Mexico is the number one Outbound country. 
+2. A huge pump happend on 2009 for Mexico.
+3. Outbound number of mexico is increasing, however for other regions it seems stable.
+4. Like Inbound, Outbound shows a seasonal pattern as well.
+
+
+Since Canada and Mexico dominate the number of people and the interest of different behaviour per region, we start looking at inbound and outbound per region. 
+
+
+#### Spend Analysis
 
 ```{r}
 yearly_spend <- tidy_ntto_spend_y %>% 
