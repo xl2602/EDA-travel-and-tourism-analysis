@@ -437,36 +437,26 @@ subplot(p1, p2, p3, p4, p5, p6, p7, p8, nrows=8) %>%
          )
 ```
 
-
 - Africa: There are more and more people from Africa travel to U.S. since 2013, but the number of american who go to Africa is very stable for past 7 years.
       
 - Asia: More and more Asias come to U.S, however, less Americans go to Asia after May 2010. Another thing to notice is the number of visitors from Asia grows faster in July compare to other month. This is probabaly due to the increase of foreign students.
 
-- Canada: 
+- Canada: Not many people go to Canada during year 2009. It may infuluenced by the Global financial crisis in 2009.
 
-- Europe: 
+- Europe: Different than other regions, the trend of inbound and outbound is very close to each other, which means that the amount of people leave 
 
-- Latin America except Mexico: 
+- Latin America except Mexico: A huge increase occured in 2014. Since it boosted too much, we question the correctness of the data source.
 
-- Mexico: A boom of number of outbound happens in the end of 2009. We did a lot research online and found news about with topics about More Mexicans Leaving Than Coming to the U.S. So we think the 
+- Mexico: A boom of number of outbound happens in the end of 2009. We did a lot research online and found many news with topics related to More Mexicans Leaving Than Coming to the U.S during that time. We suspicious this could be the reason. Unlike other regions, there's no obvious peak for Mexico. 
 
 - Middle East: Both the number of inbound and outbound increase by year.
-
 
 - Oceania: Like Asia, less of U.S. citizens visit Oceania region since mid 2010. 
 
 
-Then we move to the Outbound of all regions, from graph belowe we observe several things:
-1. Mexico is the number one Outbound country. 
-2. A huge pump happend on 2009 for Mexico.
-3. Outbound number of mexico is increasing, however for other regions it seems stable.
-4. Like Inbound, Outbound shows a seasonal pattern as well.
-
-
-Since Canada and Mexico dominate the number of people and the interest of different behaviour per region, we start looking at inbound and outbound per region. 
-
-
 #### Spend Analysis
+
+
 
 ```{r}
 yearly_spend <- tidy_ntto_spend_y %>% 
@@ -483,135 +473,84 @@ yearly_spend %>%
    spread(Type, TotalSpend) %>%
    ungroup %>% 
    plot_ly(x = ~Year) %>%
-   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(color="blue", width = 1)) %>%
-   add_trace(y=~`Receipts (exports)`, type="scatter", name='Receipts (exports)', mode = 'lines+markers', line = list(width = 1)) %>% 
+   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(color="blue", width = 2)) %>%
+   add_trace(y=~`Receipts (exports)`, type="scatter", name='Receipts (exports)', mode = 'lines+markers', line = list(width = 2)) %>% 
    layout(title = "Yearly Spending", 
           xaxis = list(title = "Year"), yaxis = list(title = "Spend"), 
           legend = list(orientation = 'h', x = 0.5, y = 1.005))
-
 ```
 
-
-```{r}
-yearly_spend %>%
-   group_by(Type, Year) %>%
-   summarise(TotalSpend=sum(Spend)) %>% 
-   spread(Type, TotalSpend) %>%
-   plot_ly(x = ~Year, y = ~`Payments (imports)`, type = 'bar', name = 'Payments', marker = list(color = 'rgb(55, 83, 109)')) %>%
-   add_trace(y = ~`Receipts (exports)`, name = 'Receipts', marker = list(color = 'rgb(26, 118, 255)')) %>%
-   layout(title = 'Yearly Spending',
-         xaxis = list(
-           title = "",
-           tickfont = list(
-             size = 14,
-             color = 'rgb(107, 107, 107)')),
-         yaxis = list(
-           title = 'Spend (Billion $)',
-           titlefont = list(
-             size = 16,
-             color = 'rgb(107, 107, 107)'),
-           tickfont = list(
-             size = 14,
-             color = 'rgb(107, 107, 107)')),
-         legend = list(orientation = 'h', x = 0, y = 1, 
-                       bgcolor = 'rgba(255, 255, 255, 0)', bordercolor = 'rgba(255, 255, 255, 0)'),
-         barmode = 'group', bargap = 0.15, bargroupgap = 0.1)
-```
-
+From the graph we can see that more money has been spent by international vistors in U.S. than americans travel outside. Spend increases by year overall, however, there's a big drop in 2009 when the Global Financial Crisis happens.
 
 ```{r message=FALSE, warning=FALSE}
-yearly_spend %>% 
+p1 <- yearly_spend %>% 
    filter(Type=="Payments (imports)") %>% 
    select(-Type) %>% 
    group_by(Region, Year) %>% 
    summarise(TotalSpend=sum(Spend)) %>% 
    spread(Region, TotalSpend) %>% 
    plot_ly(x = ~Year) %>%
-   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(width = 2)) %>%
-   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(width = 2)) %>%
-   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 2)) %>%
-   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 2)) %>%
-   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 2)) %>% 
-   layout(title = "Payments (imports)", 
-          xaxis = list(title = "Year"), 
-          yaxis = list(title = "Spend"),
-          legend = list(orientation = 'h'))
-```
+   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(color="gray", width = 2)) %>%
+   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(color="red", width = 2)) %>%
+   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(color="blue", width = 2)) %>%
+   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(color="green", width = 2)) %>%
+   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(color="orange", width = 2))
 
-
-```{r message=FALSE, warning=FALSE}
-yearly_spend %>% 
+p2 <- yearly_spend %>% 
    filter(Type=="Receipts (exports)") %>% 
    select(-Type) %>% 
    group_by(Region, Year) %>% 
    summarise(TotalSpend=sum(Spend)) %>% 
    spread(Region, TotalSpend) %>% 
    plot_ly(x = ~Year) %>%
-   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(width = 1)) %>%
-   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(width = 1)) %>% 
-   layout(title = "Receipts (exports)", 
-          xaxis = list(title = "Year"), 
-          yaxis = list(title = "Spend"), 
-          legend = list(orientation = 'h'))
+   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(color="gray", width = 2), showlegend=F) %>%
+   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(color="red", width = 2), showlegend=F) %>%
+   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(color="blue", width = 2), showlegend=F) %>%
+   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(color="green", width = 2), showlegend=F) %>%
+   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(color="orange", width = 2), showlegend=F)
+
+subplot(p1, p2, shareY=T) %>%
+  layout(title = "Payments vs Receipts by Region",
+         yaxis = list(title = "Spend"),
+         legend = list(orientation = 'h', y=-0.15)
+         )
 ```
 
+In fact, payments is quiet stable by year, these's no big jump or boom, however receipts is a different story. After breaking down by region, it is clear that, the total amount and increasing rate of Asia region is much more than others. And the Global Financial Crisis has a big influence on the money spent by visitors from Latin America. 
 
 ```{r}
-yearly_spend %>%
-   group_by(Type, Year) %>%
+p1 <- yearly_spend %>% 
+   filter(Type=="Payments (imports)") %>% 
+   select(-Type, -Region) %>% 
+   group_by(Category, Year) %>% 
    summarise(TotalSpend=sum(Spend)) %>% 
-   spread(Type, TotalSpend) %>%
+   spread(Category, TotalSpend) %>% 
+   ungroup %>% 
    plot_ly(x = ~Year) %>%
-   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(color="blue", width = 1)) %>%
-   add_trace(y=~`Receipts (exports)`, type="scatter", name='Receipts (exports)', mode = 'lines+markers', line = list(width = 1)) %>% 
-   layout(title = "Africa", 
-          xaxis = list(title = "Year"), yaxis = list(title = "Spend"), 
-          legend = list(orientation = 'h', x = 0.5, y = 1.005))
-```
+   add_trace(y = ~Education, name = 'Education', type = 'scatter', mode = 'lines+markers', line = list(color="blue")) %>% 
+   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers', type = 'scatter', mode = 'lines+markers', line = list(color="orange")) %>% 
+   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel', type = 'scatter', mode = 'lines+markers', line = list(color="green"))
 
-
-
-```{r}
-tidy_wb_gdp %>% 
-   filter(CountryCode=="USA", Year>2000, Year<2016) %>% 
-   select(Year, GDP) %>% 
-   mutate(Year=factor(Year)) %>% 
-   plot_ly(x = ~Year) %>%
-   add_trace(y=~GDP, type="scatter", name='US', mode = 'lines+markers', line = list(width = 1))
-```
-
-
-```{r}
-yearly_spend %>% 
+p2 <- yearly_spend %>% 
    filter(Type=="Receipts (exports)") %>% 
    select(-Type, -Region) %>% 
    group_by(Category, Year) %>% 
    summarise(TotalSpend=sum(Spend)) %>% 
    spread(Category, TotalSpend) %>% 
-   plot_ly(x = ~Year, y = ~Education, type = 'bar', name = 'Education') %>%
-   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers') %>% 
-   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel') %>% 
-   layout(yaxis = list(title = 'Spend'), barmode = 'group')
+   ungroup %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y = ~Education, name = 'Education', type = 'scatter', mode = 'lines+markers', line = list(color="blue"), showlegend=F) %>% 
+   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers', type = 'scatter', mode = 'lines+markers', line = list(color="orange"), showlegend=F) %>% 
+   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel', type = 'scatter', mode = 'lines+markers', line = list(color="green"), showlegend=F) 
+
+subplot(p1, p2, shareY=T) %>%
+  layout(title = "Payments vs Receipts by Category",
+         yaxis = list(title = "Spend"),
+         legend = list(orientation = 'h', y=-0.15)
+         )
 ```
 
-```{r}
-yearly_spend %>% 
-   filter(Type=="Receipts (exports)") %>% 
-   select(-Type, -Region) %>% 
-   group_by(Category, Year) %>% 
-   summarise(TotalSpend=sum(Spend)) %>% 
-   spread(Category, TotalSpend) %>% 
-   plot_ly(x = ~Year, y = ~Education, type = 'bar', name = 'Education') %>%
-   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers') %>% 
-   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel') %>% 
-   layout(yaxis = list(title = 'Spend'), barmode = 'group')
-```
-
-
-Finally, we select several region and combine inbound, outbound with GDP
+Finnaly, we look at three categories of spend. Other Business/Other Personal Travel has the biggest amount in both payments and receipts. It would be nice if this category can be break down to smaller sub groups, but unfortunately we do not have access to more detailed data. One thing is worth to mention is, unlike other two categories, the Global Financial Crisis did not influence Education. 
 
 
 ## Conclusion
@@ -622,6 +561,7 @@ You are encouraged to be as intellectually honest as possible. That means pointi
 
 
 The goal of this project is to answer the four questions raised above. We have accomplished the task despite of some flaws and limitations. For instance, the latest data we could find is for the year 2015, which is more than one year ago. In that case, we could not say the analysis is very persuasive since the data source is not up to date. We are unable to get data that are more detailed so that we cannot dig deeper to find root causes of some observations. At the very beginning, we thought the data was exhaustive and comprehensive and we made plenty of hypotheses and expectations based on the first impression; however, we find that most of our ideas are not realistic as we investigate the data more. Unfortunately, we have to discard some interesting ideas due the inconstancy in the dataset. 
+
 For the future work, we could introduce more supportive data such as the inbound and outbound traveler data of other countries, and then compare it with the USA. We believe that it would reveal results that are more interesting.
 
 
