@@ -1,0 +1,775 @@
+---
+title: "USA on the Way"
+author: "Lucy Lu (xl2602), Hanlin Wu (hw2576)"
+output:
+  html_notebook:
+    code_folding: hide
+    theme: united
+    toc: yes
+  html_document:
+    toc: yes
+fontsize: 20pt
+---
+
+## Introduction
+
+International travel has become so easy that anyone can just grab his/her bags and documents and starts a new journey. As one of the most tourists importing and exporting countries, the USA has always played a significant role in world’s tourism industry. Therefore, we want to study people who traveled to and from the USA by investigating the Travel and Tourism Statistical data provided by The National Travel & Tourism Office (NTTO). To be more precise, we want to answer following questions:
+
+-	What are the most popular international travel destinations for Americans?
+
+-	What are the main regions of people who travel to the USA?
+
+-	What are the purposes and spending of travels to and from the USA?
+
+-	Does the economy matter for the answers to above questions?
+
+
+Data is collected from two resources,
+
+-	`National Travel & Tourism Office (NTTO)`:
+    + [`Inbound Information`](http://travel.trade.gov/outreachpages/inbound.general_information.inbound_overview.html)
+    + [`Outbound Information`](http://travel.trade.gov/outreachpages/outbound.general_information.outbound_overview.html) 
+- [`World Bank`](http://data.worldbank.org/indicator/NY.GDP.MKTP.CD): 
+
+Although NTTO provides plenty of information we need, it is not easy to collect and combine them together. There is much unavoidable manual work to do in the collecting process because of the inconsistent formatting (data formats may vary from year to year), file types (some are even pdfs) and location of these files. For example, in order to get monthly arrival information per region, we have to download each year’s excel files, and then clean, select and combine them into a final master table that is easier to manipulate with in R. 
+
+In the end, we collect several master tables from NTTO: yearly spending per region with three categories, monthly inbound visitation per country and monthly outbound visitation per country. 
+
+GDP data from World Bank is much easier to obtain, we only need to download csv file from the website. Further, we will load these tables to R and use dplyr and tidyr to fit the data for our analysis. 
+
+## Team
+
+- Lucy Lu:  searching and re-organizing the data, compiling visualizations and stories, focusing on the spending analysis part.
+
+- Hanlin Wu: cleaning the data, testing various visualizations, creating the interactive app, focusing on the traveler part.
+
+To be more specific, Lucy found the datasets we needed for the whole project from NTTO website. She cleaned and re-organized the very messy data with various tools such as tidyverse, dplyr, etc. After that, she visualized the data with heatmap, bar chart and line graph to investigate travelers’ import and export spending. 
+
+Hanlin re-constructed the tables we used for the inbound and outbound traveler number analysis and GDP analysis. He tested several kinds of graphs such as bar chart, line graph and geo map, and then created a shiny app to display all visualizations. 
+
+Finally, Lucy and Hanlin worked together to complete the final report.
+
+
+<br>
+
+## Analysis of Data Quality
+
+
+```{r, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(plotly)
+library(zoo)
+```
+
+```{r, message=FALSE}
+raw_ntto_spend_y <- tbl_df(read.csv("./clean_data/clean_yearly_spending_region.csv", header = TRUE))
+raw_ntto_inbound_m <- tbl_df(read.csv("./clean_data/clean_monthly_visitation_inbound_country.csv", header = TRUE))
+raw_ntto_outbound_m <- tbl_df(read.csv("./clean_data/clean_monthly_us_to_international.csv", header = TRUE))
+raw_wb_gdp <- tbl_df(read.csv("./clean_data/API_NY.GDP.MKTP.CD_DS2_en_csv_v2.csv", header = TRUE, skip=4))
+```
+
+In order to analyze data quality of our data, we need first to look at each of them. Moreover, we truncate the output for a more compact look in report.
+<br>
+<br>
+
+- Yearly Spending from NTTO
+```{r}
+str(raw_ntto_spend_y, list.len=5)
+```
+<br>
+<br>
+
+- Monthly Outbound from NTTO
+```{r}
+str(raw_ntto_outbound_m, list.len=4)
+```
+<br>
+<br>
+
+- GDP from Word Bank
+```{r}
+str(raw_wb_gdp, list.len=6)
+```
+
+The internal structure of these data indicates several data quality issues:
+
+* Not tidy:
+      + It is better in our case to have a column named `Year` instead of each year has its own column. 
+* Messy column names:
+      + Some columns as `X1960` is weird and we should remove the extra "X".
+* Wrong types of values:
+      + Some numerical value have been recognized as string (e.g. "1,707,635")
+* Inconsistency of categorical variable values and column names:
+      + In some table month is represented as first three letters (e.g. Jan) and in other table is represented as full name (e.g. APRIL).
+      + In consistency of upper/lower case of strings (e.g. `Year` and `year`)
+* Country and region mixed
+* Missing values
+      + For most of data, we do not have NA values, except GDP. 
+      + As what is shown in the graph below, we only have some missing values in GDP data for countries we are interested. However, the missing values are either before 1990 nor after 2016, which would not influence our analysis.
+
+
+
+```{r fig.height=3, fig.width=5}
+country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
+
+tidy_wb_gdp <- raw_wb_gdp %>% 
+   select(-Indicator.Name, -Indicator.Code, -X) %>% 
+   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
+   filter(grepl(country_str, Country.Name)) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
+   # filter(year>1999) %>% 
+   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+
+ggplot(tidy_wb_gdp, aes(x=Year, y=CountryName,  fill = Missing)) +
+   geom_tile(color = "white") + 
+   scale_fill_manual(values=c("blue", "orange")) +
+   # scale_fill_viridis(discrete = TRUE) +
+   ggtitle("Missing Value of All Interested Countries (1960-2016)") +
+   theme_linedraw() +
+   theme(axis.text.x=element_text(angle=90)) 
+```
+
+## Executive Summary
+
+Our project concentrated on analyzing the number of inbound and outbound travelers as well as their spending. 
+
+To display the graphs in a more interactive way, we created a shiny app. Here is the link of the shiny app: https://viz233.shinyapps.io/shiny/
+
+You can chose each section on the top and table below it to review the graphs. By selecting different options on the left panel, you can include different lines and columns to the graph.
+
+The first graph is a map that displays the number of travelers went to the USA from top 20 countries in past ten years. When your mouse hovers on a country on the map, the number shows up for the selected year. (App will only shown in the report when open in a browser)
+
+<br>
+
+<iframe src="https://viz233.shinyapps.io/shiny/" style="border: none; width: 900px; height: 600px"></iframe>
+
+
+By switching to regional summary and details, you may get the inbound and outbound number breaking down to the region level and month level. We also made a compact graph, which shows all information together regarding the inbound and outbound traveler number.
+
+It is very clear to see that the number of travelers from each region is increasing during the period and Canada contributes the most, followed by Mexico and Europe. For international traveling, Americans prefer Mexico and Canada to other regions.
+
+<br>
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
+
+tidy_ntto_spend_y <- raw_ntto_spend_y %>%
+   gather(x_year, spend, -region, -type, -category) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>%  
+   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
+   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region), Year=factor(Year), Region=factor(Region))
+
+tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
+   mutate(as.character(TOTAL.ARRIVALS)) %>% 
+   gather(key, val, -year, -MONTH) %>%
+   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
+   filter(!grepl("total", key)) %>%
+   unite(YearMonth, year, Month, sep="-") %>%
+   select(Year, YearMonth, MixRegion=key, Inbound=Arrival) %>% 
+   mutate(MixRegion=recode(MixRegion, 
+                           "latin america  excl mexico "="latin america excl mexico",
+                           "prc  excl hk "="china",
+                           "roc  taiwan "="taiwan")) %>% 
+   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"), Year=factor(Year), Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion)) %>% 
+   arrange(MixRegion, Date)
+
+tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
+   gather(Month, Outbound, -Year, -Regions) %>% 
+   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), MixRegion=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
+   mutate(MixRegion=gsub("^\\s+|\\s+$", "", MixRegion)) %>% 
+   filter(!grepl("air", MixRegion), !MixRegion=='total overseas', !MixRegion=='north america', !MixRegion=='grand total') %>% 
+   unite(YearMonth, year, Month, sep="-") %>% 
+   mutate(Region=recode(MixRegion, 
+                        "caribbean"="latin america excl mexico",
+                        "central america"="latin america excl mexico",
+                        "south america"="latin america excl mexico")) %>% 
+   mutate(Missing=ifelse(is.na(Outbound), "yes", "no"), Year=factor(Year),
+          Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion), Region=factor(Region)) %>% 
+   select(Region, MixRegion, Year, Date, Missing, Outbound) %>% 
+   arrange(Region, MixRegion, Date)
+
+tidy_wb_gdp <- raw_wb_gdp %>% 
+   select(-Indicator.Name, -Indicator.Code, -X) %>% 
+   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
+   filter(grepl(country_str, Country.Name)) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
+   # filter(year>1999) %>% 
+   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+
+region_str <- "africa|asia|canada|latin america (excl mexico)|europe|mexico|middle east|oceania"
+
+inbound_region <- tidy_ntto_inbound_m %>% 
+   filter(grepl(region_str, MixRegion)) %>% 
+   select(Region=MixRegion, Year, Date, Inbound) %>% 
+   group_by(Region, Year, Date) %>% 
+   summarise(TotalInbound=sum(Inbound)) %>% 
+   ungroup
+
+outbound_region <- tidy_ntto_outbound_m %>% 
+   select(Region, Year, Date, Outbound) %>% 
+   group_by(Region, Year, Date) %>% 
+   summarise(TotalOutbound=sum(Outbound)) %>% 
+   ungroup
+
+regional_travel <- inner_join(inbound_region, outbound_region, by=c("Region"="Region", "Year"="Year", "Date"="Date"))
+
+yearly_spend <- tidy_ntto_spend_y %>% 
+   filter(Region!='european union', Region!='south-central america', Region!='overseas') %>% 
+   mutate(Region=recode(Region, "asia-pacific"="asia"), Spend=Spend*1000000) %>% 
+   select(-Missing) %>% 
+   arrange(Region, Year, Type, Category) 
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+p1 <- inbound_region %>% 
+   spread(Region, TotalInbound) %>% 
+   filter(Date>'2008-11') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1)) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1)) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1)) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1)) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1)) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1)) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1)) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1)) 
+
+p2 <- outbound_region %>% spread(Region, TotalOutbound) %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1), showlegend=F) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1), showlegend=F) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1), showlegend=F) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1), showlegend=F) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1), showlegend=F) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1), showlegend=F) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+subplot(p1, p2, nrows=2, shareX=T) %>%
+  layout(title = "Inbound v.s. Outbound",
+         yaxis = list(title = "Inbound"),
+         yaxis2 = list(title = "Outbound"),
+         legend = list(orientation = 'h')
+         )
+```
+
+<br>
+For the spending analysis part, the goal is to find out the trend and possible causes. Since the spending of travelers from each region add up to the total number, area plot is a very demonstrative visualization method.
+
+We can find that the overall trend of export and import spending is upward during the past ten years. The interesting thing is that there is a dramatic jump in both graph from the year 2008 to the year 2009. Note that Travel export and import accounts cover purchases of goods and services by U.S. persons traveling abroad and by international visitors traveling in the United States for business or personal reasons. In that case, we guess that it is the Global Financial Crisis in 2009 that influenced the tourism industry. For people who traveled to USA, they were significantly impacted by the Crisis and spent much less than previous; however, the impact on U.S. travelers was not that critical, which only resulted in about 15 billion loss.
+
+<br>
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+p1 <- yearly_spend %>% 
+   filter(Type=="Receipts (exports)") %>% 
+   select(-Type) %>% 
+   group_by(Region, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Region, TotalSpend) %>% 
+  mutate(cum_me=(africa+`middle east`), 
+          #cum_oc=(cum_me+oceania), 
+          cum_la=(`latin america`), 
+          cum_as=(cum_la+asia),
+          cum_eu=(cum_as+europe))%>% 
+          #cum_mx=(cum_eu+mexico),
+          #cum_ca=(cum_mx+canada)) 
+   plot_ly(x = ~Year) %>% 
+   add_trace(y=~africa, name='africa', hoverinfo = 'text', text=~paste(round(africa/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(255, 0, 0, 0.5)', line = list(color='red', width = 0.5), showlegend=F) %>% 
+   add_trace(y=~cum_me, name='middle east', hoverinfo = 'text', text=~paste(round(`middle east`/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(81, 81, 81, 0.5)', line = list(color="black", width = 0.5), showlegend=F) %>% 
+   add_trace(y=~cum_la, name='latin america', hoverinfo = 'text', text=~paste(round(`latin america`/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(102, 205, 0, 0.5)', line = list(color="green", width = 0.5), showlegend=F) %>% 
+   add_trace(y=~cum_as, name='asia', hoverinfo = 'text', text=~paste(round(asia/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(255, 165, 0, 0.5)', line = list(color="orange", width = 0.5), showlegend=F) %>% 
+   add_trace(y=~cum_eu, name='europe', hoverinfo = 'text', text=~paste(round(europe/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(0, 0, 255, 0.5)', line = list(color="blue", width = 0.5), showlegend=F)
+
+p2 <- yearly_spend %>% 
+   filter(Type=="Payments (imports)") %>% 
+   select(-Type) %>% 
+   group_by(Region, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Region, TotalSpend) %>% 
+  mutate(cum_me=(africa+`middle east`), 
+          #cum_oc=(cum_me+oceania), 
+          cum_la=(`latin america`), 
+          cum_as=(cum_la+asia),
+          cum_eu=(cum_as+europe))%>% 
+          #cum_mx=(cum_eu+mexico),
+          #cum_ca=(cum_mx+canada)) 
+   plot_ly(x = ~Year) %>% 
+   add_trace(y=~africa, name='africa', hoverinfo = 'text', text=~paste(round(africa/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(255, 0, 0, 0.5)', line = list(color='red', width = 0.5)) %>% 
+   add_trace(y=~cum_me, name='middle east', hoverinfo = 'text', text=~paste(round(`middle east`/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(81, 81, 81, 0.5)', line = list(color="black", width = 0.5)) %>% 
+   add_trace(y=~cum_la, name='latin america', hoverinfo = 'text', text=~paste(round(`latin america`/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(102, 205, 0, 0.5)', line = list(color="green", width = 0.5)) %>% 
+   add_trace(y=~cum_as, name='asia', hoverinfo = 'text', text=~paste(round(asia/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(255, 165, 0, 0.5)', line = list(color="orange", width = 0.5)) %>% 
+   add_trace(y=~cum_eu, name='europe', hoverinfo = 'text', text=~paste(round(europe/1000000000, 1), ' B'), type = 'scatter', mode='lines', fill = 'tonexty', fillcolor = 'rgba(0, 0, 255, 0.5)', line = list(color="blue", width = 0.5))
+
+subplot(p2, p1, shareY=T) %>%
+  layout(title = "Payments vs Receipts by Region",
+         yaxis = list(title = "Spend"),
+         legend = list(orientation = 'h')
+         )
+
+```
+
+
+## Main Analysis
+
+<br>
+
+### Data Cleaning
+
+Since the data is very messy, we put much effort on cleaning and extract useful information from it. Our data cleaning can be summarized into two parts:
+
+1. Conquer all the data quality issues mention in previous session.
+      - As what shown in the code, there are many selection, mutation and manipulation going on for each raw data.
+
+```{r message=FALSE, warning=FALSE}
+country_str <- 'Argentina|Australia|Brazil|Canada|Chile|China|Colombia|France|Germany|India|Italy|Japan|Mexico|Netherlands|Russia|Saudi Arabia|South Korea|Singapore|Spain|Sweden|Switzerland|Taiwan|United Kingdom|United States' 
+
+tidy_ntto_spend_y <- raw_ntto_spend_y %>%
+   gather(x_year, spend, -region, -type, -category) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(Region=region, Type=type, Category=category, Year=Year,Spend=spend) %>%  
+   mutate(Region=gsub("^\\s+|\\s+$", "", Region)) %>% 
+   mutate(Missing = ifelse(is.na(Spend), "yes", "no"), Region=tolower(Region), Year=factor(Year), Region=factor(Region))
+
+tidy_ntto_inbound_m <- raw_ntto_inbound_m %>%
+   mutate(as.character(TOTAL.ARRIVALS)) %>% 
+   gather(key, val, -year, -MONTH) %>%
+   mutate(Arrival=as.numeric(gsub('[^0-9]+', '', val)), Month=match(tolower(substr(MONTH, 1, 3)), tolower(month.abb)), key=tolower(gsub('\\.', ' ', key)), Year=year) %>%
+   filter(!grepl("total", key)) %>%
+   unite(YearMonth, year, Month, sep="-") %>%
+   select(Year, YearMonth, MixRegion=key, Inbound=Arrival) %>% 
+   mutate(MixRegion=recode(MixRegion, 
+                           "latin america  excl mexico "="latin america excl mexico",
+                           "prc  excl hk "="china",
+                           "roc  taiwan "="taiwan")) %>% 
+   mutate(Missing = ifelse(is.na(Inbound), "yes", "no"), Year=factor(Year), Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion)) %>% 
+   arrange(MixRegion, Date)
+
+tidy_ntto_outbound_m <- raw_ntto_outbound_m %>% 
+   gather(Month, Outbound, -Year, -Regions) %>% 
+   mutate(Outbound=as.numeric(gsub('[^0-9]+', '', Outbound)), Month=match(Month, month.abb), MixRegion=tolower(gsub('\\([a-zA-Z0-9]+\\)', '', Regions)), year=Year) %>% 
+   mutate(MixRegion=gsub("^\\s+|\\s+$", "", MixRegion)) %>% 
+   filter(!grepl("air", MixRegion), !MixRegion=='total overseas', !MixRegion=='north america', !MixRegion=='grand total') %>% 
+   unite(YearMonth, year, Month, sep="-") %>% 
+   mutate(Region=recode(MixRegion, 
+                        "caribbean"="latin america excl mexico",
+                        "central america"="latin america excl mexico",
+                        "south america"="latin america excl mexico")) %>% 
+   mutate(Missing=ifelse(is.na(Outbound), "yes", "no"), Year=factor(Year),
+          Date=as.yearmon(YearMonth), MixRegion=factor(MixRegion), Region=factor(Region)) %>% 
+   select(Region, MixRegion, Year, Date, Missing, Outbound) %>% 
+   arrange(Region, MixRegion, Date)
+
+tidy_wb_gdp <- raw_wb_gdp %>% 
+   select(-Indicator.Name, -Indicator.Code, -X) %>% 
+   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
+   filter(grepl(country_str, Country.Name)) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   select(CountryName=Country.Name, CountryCode=Country.Code, Year=Year, GDP=GDP) %>% 
+   # filter(year>1999) %>% 
+   mutate(Missing = ifelse(is.na(GDP), "yes", "no"))
+```
+
+2. Combine/Join some data together to make further visualization easier.
+
+```{r message=FALSE, message=FALSE, warning=FALSE}
+region_str <- "africa|asia|canada|latin america (excl mexico)|europe|mexico|middle east|oceania"
+
+inbound_region <- tidy_ntto_inbound_m %>% 
+   filter(grepl(region_str, MixRegion)) %>% 
+   select(Region=MixRegion, Year, Date, Inbound) %>% 
+   group_by(Region, Year, Date) %>% 
+   summarise(TotalInbound=sum(Inbound)) %>% 
+   ungroup
+
+outbound_region <- tidy_ntto_outbound_m %>% 
+   select(Region, Year, Date, Outbound) %>% 
+   group_by(Region, Year, Date) %>% 
+   summarise(TotalOutbound=sum(Outbound)) %>% 
+   ungroup
+
+regional_travel <- inner_join(inbound_region, outbound_region, by=c("Region"="Region", "Year"="Year", "Date"="Date"))
+
+```
+
+
+### Challenges
+
+There are several challenges in our project:
+
+1. Due to the problems in the data set such as inconsistency, we have to spend much time in cleaning and re-organizing it, which makes the work tedious and laborious. 
+
+2. We need country level data in some graphs; however, what we can acquire from the dataset is region level. In that case, we have to project the data onto the whole region, which makes the analysis not comprehensive and detailed.
+
+3. For spending analysis, we need Canada and Mexico data to conduct a completed study; however, due to some unknown reason, NTTO does not provide such data. In that case, we have to leave it and focus on other regions.
+
+4. Shiny is a great tool for creating interactive data visualizations in R; however, we do not have much experience in it, and therefore have to spend time learning it, which is not easy in such a short time.
+
+<br>
+
+### Analysis
+
+<br>
+
+#### Travel and Tourism Analysis
+
+```{r fig.height=3, message=FALSE, warning=FALSE}
+regional_travel %>% 
+   select(Year, TotalInbound, TotalOutbound) %>% 
+   group_by(Year) %>% 
+   summarise(TotalInbound=sum(TotalInbound), TotalOutbound=sum(TotalOutbound)) %>% 
+   plot_ly(x = ~Year, y = ~TotalInbound, type = 'bar', name = 'Inbound', marker = list(color = 'rgb(55, 83, 109)')) %>%
+add_trace(y = ~TotalOutbound, name = 'Outbound', marker = list(color = 'rgb(26, 118, 255)')) %>%
+layout(title = 'Yearly Inbound and Outbound',
+      xaxis = list(
+        title = "",
+        tickfont = list(
+          size = 14,
+          color = 'rgb(107, 107, 107)')),
+      yaxis = list(
+        title = 'Number of People',
+        titlefont = list(
+          size = 16,
+          color = 'rgb(107, 107, 107)'),
+        tickfont = list(
+          size = 14,
+          color = 'rgb(107, 107, 107)')),
+      legend = list(orientation = 'h', x = 0, y = 1, 
+                    bgcolor = 'rgba(255, 255, 255, 0)', bordercolor = 'rgba(255, 255, 255, 0)'),
+      barmode = 'group', bargap = 0.15)
+```
+
+
+The United States is one of the largest destinations for visitors and has a large amount outbound journey as well. The numbers of inbound and outbound have increased a lot from 2009 to 2010. From 2010 to 2013, the number of international visitors raised a little bit each year however the amount of outbound is somewhat stable. Since 2013, both of them grown a lot and finally achieved 77.5 million international visitations and 85.6 million outbound travelers in 2015. 
+
+Naturally, we wonder what the most popular destination for Americans are, and where these international visitors come from. To answer these questions, we break down the graph into smaller regions.
+
+```{r message=FALSE, message=FALSE, warning=FALSE}
+p1 <- inbound_region %>% 
+   spread(Region, TotalInbound) %>% 
+   filter(Date>'2008-11') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1)) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1)) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1)) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1)) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1)) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1)) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1)) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1)) 
+
+p2 <- outbound_region %>% spread(Region, TotalOutbound) %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~africa, name='africa', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~asia, name='asia', mode='lines', line = list(color="red", width = 1), showlegend=F) %>%
+   add_trace(y=~canada, name='canada', mode='lines', line = list(color="orange", width = 1), showlegend=F) %>%
+   add_trace(y=~europe, name='europe', mode='lines', line = list(color="pink", width = 1), showlegend=F) %>%
+   add_trace(y=~`latin america excl mexico`, name='latin america excl mexico', mode='lines', line = list(color="green", width = 1), showlegend=F) %>%
+   add_trace(y=~mexico, name='mexico', mode='lines', line = list(color="purple", width = 1), showlegend=F) %>%
+   add_trace(y=~`middle east`, name='middle east', mode='lines', line = list(color="black", width = 1), showlegend=F) %>%
+   add_trace(y=~oceania, name='oceania', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+subplot(p1, p2, nrows=2, shareX=T) %>%
+  layout(title = "Inbound v.s. Outbound",
+         yaxis = list(title = "Inbound"),
+         yaxis2 = list(title = "Outbound"),
+         legend = list(orientation = 'h')
+         )
+```
+
+After separating each region out, we observed several things:
+
+- Most of the international travelers are come from Canada, Mexico, Europe, and Asia. 
+- Mexico, Canada, Europe, and Latin America except Mexico are the top destinations for Americans. 
+- Seasonality exists in each line. Usually peak is reached in summer. For example, every year of July, the number of Canada visitors reaches its highest peak of the year.
+- A boom in amount of visitors from Latin America except Mexico in the beginning of 2014 and a boom in amount of people travel to Mexico in the start of 2010.
+
+We further draws inbound and outbound per region to better explore the hidden pattern individually.
+
+
+```{r fig.height=20, message=FALSE, warning=FALSE}
+p1 <- regional_travel %>% 
+   filter(Region=='africa') %>% 
+   plot_ly(x = ~as.POSIXct(Date), height = 1000) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1)) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1)) %>% 
+   layout(autosize=F)
+
+p2 <- regional_travel %>% 
+   filter(Region=='asia') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+p3 <- regional_travel %>% 
+   filter(Region=='canada') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+p4 <- regional_travel %>% 
+   filter(Region=='europe') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+p5 <- regional_travel %>% 
+   filter(Region=='latin america excl mexico') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+p6 <- regional_travel %>% 
+   filter(Region=='mexico') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+p7 <- regional_travel %>% 
+   filter(Region=='middle east') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+p8 <- regional_travel %>% 
+   filter(Region=='oceania') %>% 
+   plot_ly(x = ~as.POSIXct(Date)) %>%
+   add_trace(y=~TotalInbound, type="scatter", name='Inbound', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~TotalOutbound, type="scatter", name='Outbound', mode='lines', line = list(color="blue", width = 1), showlegend=F)
+
+subplot(p1, p2, p3, p4, p5, p6, p7, p8, nrows=8) %>%
+  layout(title = "Regional Inbound and Outbound",
+         yaxis = list(title = "Africa"),
+         yaxis2 = list(title = "Asia"), 
+         yaxis3 = list(title = "Canada"),
+         yaxis4 = list(title = "Europe"),
+         yaxis5 = list(title = "Latin America"),
+         yaxis6 = list(title = "Mexico"),
+         yaxis7 = list(title = "Middle East"),
+         yaxis8 = list(title = "Oceania"),
+         legend = list(orientation = 'h', x = 0, y = 1.005)
+         )
+```
+
+- Africa: There are more and more people from Africa travel to U.S. since 2013, but the number of american who go to Africa is very stable for past 7 years.
+      
+- Asia: More and more Asias come to U.S, however, less Americans go to Asia after May 2010. Another thing to notice is the number of visitors from Asia grows faster in July compare to other month. This is probabaly due to the increase of foreign students.
+
+- Canada: Not many people go to Canada during year 2009. It may infuluenced by the Global financial crisis in 2009.
+
+- Europe: Different than other regions, the trend of inbound and outbound is very close to each other, which means that the amount of people leave 
+
+- Latin America except Mexico: A huge increase occured in 2014. Since it boosted too much, we question the correctness of the data source.
+
+- Mexico: A boom of number of outbound happens in the end of 2009. We did a lot research online and found many news with topics related to More Mexicans Leaving Than Coming to the U.S during that time. We suspicious this could be the reason. Unlike other regions, there's no obvious peak for Mexico. 
+
+- Middle East: Both the number of inbound and outbound increase by year.
+
+- Oceania: Like Asia, less of U.S. citizens visit Oceania region since mid 2010. 
+
+<br>
+
+#### Spend Analysis
+
+```{r message=FALSE, warning=FALSE}
+yearly_spend <- tidy_ntto_spend_y %>% 
+   filter(Region!='european union', Region!='south-central america', Region!='overseas') %>% 
+   mutate(Region=recode(Region, "asia-pacific"="asia"), Spend=Spend*1000000) %>% 
+   select(-Missing) %>% 
+   arrange(Region, Year, Type, Category) 
+
+yearly_spend %>%
+   group_by(Type, Year) %>%
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Type, TotalSpend) %>%
+   ungroup %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~`Payments (imports)`, type="scatter", name='Payments (imports)', mode = 'lines+markers', line = list(color="blue", width = 2)) %>%
+   add_trace(y=~`Receipts (exports)`, type="scatter", name='Receipts (exports)', mode = 'lines+markers', line = list(width = 2)) %>% 
+   layout(title = "Yearly Spending", 
+          xaxis = list(title = "Year"), yaxis = list(title = "Spend"), 
+          legend = list(orientation = 'h', x = 0.5, y = 1.005))
+```
+
+From the graph we can see that more money has been spent by international vistors in U.S. than americans travel outside. Spend increases by year overall, however, there's a big drop in 2009 when the Global Financial Crisis happens.
+
+
+```{r, message=FALSE, warning=FALSE}
+p1 <- yearly_spend %>% 
+   filter(Type=="Payments (imports)") %>% 
+   select(-Type) %>% 
+   group_by(Region, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Region, TotalSpend) %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(color="gray", width = 2)) %>%
+   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(color="red", width = 2)) %>%
+   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(color="blue", width = 2)) %>%
+   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(color="green", width = 2)) %>%
+   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(color="orange", width = 2))
+
+p2 <- yearly_spend %>% 
+   filter(Type=="Receipts (exports)") %>% 
+   select(-Type) %>% 
+   group_by(Region, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Region, TotalSpend) %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y=~africa, type="scatter", name='africa', mode = 'lines+markers', line = list(color="gray", width = 2), showlegend=F) %>%
+   add_trace(y=~asia, type="scatter", name='asia', mode = 'lines+markers', line = list(color="red", width = 2), showlegend=F) %>%
+   add_trace(y=~europe, type="scatter", name='europe', mode = 'lines+markers', line = list(color="blue", width = 2), showlegend=F) %>%
+   add_trace(y=~`latin america`, type="scatter", name='latin america', mode = 'lines+markers', line = list(color="green", width = 2), showlegend=F) %>%
+   add_trace(y=~`middle east`, type="scatter", name='middle east', mode = 'lines+markers', line = list(color="orange", width = 2), showlegend=F)
+
+subplot(p1, p2, shareY=T) %>%
+  layout(title = "Payments vs Receipts by Region",
+         yaxis = list(title = "Spend"),
+         legend = list(orientation = 'h', y=-0.15)
+         )
+```
+
+In fact, payments is quiet stable by year, these's no big jump or boom, however receipts is a different story. After breaking down by region, it is clear that, the total amount and increasing rate of Asia region is much more than others. And the Global Financial Crisis has a big influence on the money spent by visitors from Latin America. 
+
+```{r, message=FALSE, warning=FALSE}
+p1 <- yearly_spend %>% 
+   filter(Type=="Payments (imports)") %>% 
+   select(-Type, -Region) %>% 
+   group_by(Category, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Category, TotalSpend) %>% 
+   ungroup %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y = ~Education, name = 'Education', type = 'scatter', mode = 'lines+markers', line = list(color="blue")) %>% 
+   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers', type = 'scatter', mode = 'lines+markers', line = list(color="orange")) %>% 
+   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel', type = 'scatter', mode = 'lines+markers', line = list(color="green"))
+
+p2 <- yearly_spend %>% 
+   filter(Type=="Receipts (exports)") %>% 
+   select(-Type, -Region) %>% 
+   group_by(Category, Year) %>% 
+   summarise(TotalSpend=sum(Spend)) %>% 
+   spread(Category, TotalSpend) %>% 
+   ungroup %>% 
+   plot_ly(x = ~Year) %>%
+   add_trace(y = ~Education, name = 'Education', type = 'scatter', mode = 'lines+markers', line = list(color="blue"), showlegend=F) %>% 
+   add_trace(y = ~`Medical/Short-Term Workers`, name = 'Medical/Short-Term Workers', type = 'scatter', mode = 'lines+markers', line = list(color="orange"), showlegend=F) %>% 
+   add_trace(y = ~`Other Business/Other Personal Travel`, name = 'Other Business/Other Personal Travel', type = 'scatter', mode = 'lines+markers', line = list(color="green"), showlegend=F) 
+
+subplot(p1, p2, shareY=T) %>%
+  layout(title = "Payments vs Receipts by Category",
+         yaxis = list(title = "Spend"),
+         legend = list(orientation = 'h', y=-0.15)
+         )
+```
+
+Finnaly, we look at three categories of spend. Other Business/Other Personal Travel has the biggest amount in both payments and receipts. It would be nice if this category can be break down to smaller sub groups, but unfortunately we do not have access to more detailed data. One thing is worth mentioning is, unlike other two categories, the Global Financial Crisis did not influence Education spending. 
+
+
+<br>
+
+#### GDP Analysis
+
+```{r, message=FALSE, warning=FALSE}
+spend_pair <- tbl_df(read.csv("clean_data/spendingpair.csv", header = TRUE))
+
+country_str <- 'Australia|Brazil|China|France|Germany|India|Japan|Korea|United Kingdom' 
+
+filter_gdp <- raw_wb_gdp %>% 
+   select(-Indicator.Name, -Indicator.Code, -X) %>% 
+   gather(x_year, GDP, -Country.Name, -Country.Code) %>% 
+   filter(grepl(country_str, Country.Name)) %>% 
+   separate(x_year, c("X", "Year"), sep="X") %>% 
+   select(-X) %>% 
+   filter(Year>2007, Country.Name!="Hong Kong SAR, China", 
+          Country.Name!="Macao SAR, China", Country.Name!="Korea, Dem. People’s Rep.") %>% 
+   mutate(Country.Name=recode(Country.Name, 
+                              "Korea, Rep."="south korea",
+                              "United Kingdom"="uk"),
+          Country.Name=tolower(Country.Name),
+          Year=as.numeric(Year)) %>% 
+   select(CountryName=Country.Name, Year, GDP)
+
+join_gdp <- inner_join(spend_pair, filter_gdp, by=c("country"="CountryName", "year"="Year"))
+
+normalit<-function(m){
+   (m - min(m))/(max(m)-min(m))
+ }
+
+scaled_join_gdp <- join_gdp %>% 
+  group_by(country) %>% 
+  mutate(ScaledArrival=normalit(arrival)) %>% 
+  mutate(ScaledGDP=normalit(GDP)) %>% 
+  mutate(ScaledSpend=normalit(spending)) %>% 
+  ungroup
+
+p1 <- scaled_join_gdp %>% 
+   filter(country=='uk') %>% 
+   plot_ly(x=~year) %>%
+   add_trace(y=~ScaledArrival, type="scatter", name='ScaledArrival', mode='lines', line = list(color="gray", width = 1)) %>%
+   add_trace(y=~ScaledSpend, type="scatter", name='ScaledSpend', mode='lines', line = list(color="blue", width = 1)) %>%
+   add_trace(y=~ScaledGDP, type="scatter", name="ScaledGDP",mode='lines', line = list(color="orange", width = 1))
+
+p2 <- scaled_join_gdp %>% 
+   filter(country=='china') %>% 
+   plot_ly(x=~year) %>%
+   add_trace(y=~ScaledArrival, type="scatter", name='ScaledArrival', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~ScaledSpend, type="scatter", name='ScaledSpend', mode='lines', line = list(color="blue", width = 1), showlegend=F) %>%
+   add_trace(y=~ScaledGDP, type="scatter", name="ScaledGDP",mode='lines', line = list(color="orange", width = 1), showlegend=F)
+
+p3 <- scaled_join_gdp %>% 
+   filter(country=='south korea') %>% 
+   plot_ly(x=~year) %>%
+   add_trace(y=~ScaledArrival, type="scatter", name='ScaledArrival', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~ScaledSpend, type="scatter", name='ScaledSpend', mode='lines', line = list(color="blue", width = 1), showlegend=F) %>%
+   add_trace(y=~ScaledGDP, type="scatter", name="ScaledGDP",mode='lines', line = list(color="orange", width = 1), showlegend=F)
+
+p4 <- scaled_join_gdp %>% 
+   filter(country=='germany') %>% 
+   plot_ly(x=~year) %>%
+   add_trace(y=~ScaledArrival, type="scatter", name='ScaledArrival', mode='lines', line = list(color="gray", width = 1), showlegend=F) %>%
+   add_trace(y=~ScaledSpend, type="scatter", name='ScaledSpend', mode='lines', line = list(color="blue", width = 1), showlegend=F) %>%
+   add_trace(y=~ScaledGDP, type="scatter", name="ScaledGDP",mode='lines', line = list(color="orange", width = 1), showlegend=F)
+
+subplot(p1, p2, p3, p4, nrows=1, shareY = T) %>%
+  layout(title = "Scaled - GDP VS Arrival VS SPENDING",
+         yaxis=list(title=" ", showticklabels=F),
+         xaxis = list(title = "UK"),
+         xaxis2 = list(title = "China"),
+         xaxis3 = list(title = "Korea"),
+         xaxis4 = list(title = "Germany"),
+         legend = list(orientation = 'h', x=1, y=-0.3)
+         )
+
+  
+```
+
+By introducing the GDP data of main markets, we can easily find there is a strong positive correlation between the situation of economy and tourism activity. As most of the countries suffered from the Global Financial Crisis in 2009, international travelers contributed much less to the USA tourism industry. We can also see a great boom in the spending of Chinese travelers and traveler number along with the increasing in GDP. 
+
+
+## Conclusion
+
+
+#### Limitations 
+
+
+The goal of this project is to answer the four questions raised above. We have accomplished the task despite of some flaws and limitations. For instance, the latest data we could find is for the year 2015, which is more than one year ago. In that case, we could not say the analysis is very persuasive since the data source is not up to date. We are unable to get data that are more detailed so that we cannot dig deeper to find root causes of some observations. At the very beginning, we thought the data was exhaustive and comprehensive and we made plenty of hypotheses and expectations based on the first impression; however, we find that most of our ideas are not realistic as we investigate the data more. Unfortunately, we have to discard some interesting ideas due the inconstancy in the dataset. 
+
+
+#### Futrue work 
+
+
+For the future work, we could introduce more supportive data such as the inbound and outbound traveler data of other countries, main markets GDP, etc. and then compare them with the USA data. We believe that it would reveal some findings that are more interesting. In addition, we can also try to predict the future traveler number and spending if we could obtain the latest data from NTTO.
+
+
+#### Behind the scenes
+
+
+At the very beginning, each of us searched for several topics for the final projects, including customer satisfaction analysis, educational situation, and environmental report, etc. After a long time discussion, actually, we spent more than 4 hours in comparing each topic; we finally decided to investigate the tourism industry in the USA.  We believe this is a very interesting topic because it can be decomposed from many different dimensions such as time and region. During the period, we communicated very frequently to make sure we were always on the same page. In fact, we have learnt much from this final project in terms of not only technical skills but also communication tricks.
+
+
